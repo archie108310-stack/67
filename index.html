@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <title>GT-Chiayi 3D: 第一人稱擬真嘉義大冒險</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js for 3D Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Noto+Sans+TC:wght@500;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', 'Chakra Petch', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #050505;
+            user-select: none;
+            cursor: none;
+        }
+        #shop-overlay, #shop-overlay *, #settings-panel, #settings-panel *, #auth-modal, #auth-modal *, #instructions-overlay, #instructions-overlay *, #modal-overlay, #modal-overlay *, #pause-overlay, #pause-overlay * { cursor: default !important; }
+
+        #shop-overlay, #shop-overlay * { touch-action: pan-y; }
+        body.ui-open, body.ui-open * { cursor: default !important; }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .hud-card {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.8);
+        }
+
+        #crosshair {
+            transition: transform .15s;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background-color: rgba(250, 204, 21, 0.9);
+            border: 2px solid rgba(0, 0, 0, 0.9);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 20;
+            transition: transform 0.1s;
+        }
+
+        #minimapCanvas {
+            border: 3px solid #eab308;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.9);
+            box-shadow: 0 0 20px rgba(234, 179, 8, 0.5);
+        }
+
+        #instructions-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, rgba(15,23,42,0.95) 0%, rgba(2,6,23,0.98) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+    html, body { touch-action: none; overscroll-behavior: none; -webkit-touch-callout: none; -webkit-user-select: none; }
+        #instructions-overlay { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        #pause-overlay > div, #modal-overlay > div { max-height: 94vh; overflow-y: auto; }
+        #touch-ui { position: fixed; inset: 0; z-index: 15; pointer-events: none; }
+        #joy { position: absolute; left: 16px; bottom: 240px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.35); pointer-events: auto; touch-action: none; }
+        #joy-knob { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(250,204,21,.75); border: 2px solid #fff8; }
+        #tbtns { position: absolute; right: 10px; bottom: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
+        .tg { display: grid; grid-template-columns: repeat(3, 58px); gap: 8px; }
+        #tctx { direction: rtl; } #tfix { display: flex; flex-direction: row-reverse; flex-wrap: wrap-reverse; gap: 8px; width: 182px; } #tfix .tb { flex: none; } .tb { direction: ltr; }
+        .tb { width: 58px; height: 58px; border-radius: 50%; background: rgba(15,23,42,.65); border: 2px solid rgba(250,204,21,.7); color: #fde68a; font-size: 22px; line-height: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; touch-action: none; }
+        .tb small { font-size: 9px; margin-top: 2px; font-weight: 800; }
+        .tb.on { background: rgba(250,204,21,.6); color: #000; }
+        @media (max-height: 520px) { #joy { left: 190px; bottom: 14px; } .tb { width: 50px; height: 50px; font-size: 19px; } #tbtns, .tg { gap: 6px; } .tg { grid-template-columns: repeat(4, 50px); } #tfix { width: 162px; gap: 6px; } }
+        @media (pointer: coarse) {
+          .tm-card { min-width: 0 !important; width: 44vw; max-width: 190px; padding: 8px !important; gap: 4px !important; }
+          .tm-card #cam-toggle-btn, .tm-card #pause-btn, .tm-card #current-location { display: none !important; }
+          .tm-card #cash-display { font-size: 15px !important; }
+          .tm-card #vehicle-hud { min-width: 0 !important; padding: 6px 8px !important; margin-top: 2px; }
+          #mission-card { max-width: 44vw !important; padding: 8px !important; }
+          #arrest-ui { top: 28% !important; bottom: auto !important; width: 200px !important; }
+          #joy { bottom: 150px !important; }
+        }
+        @media (pointer: coarse) and (max-height: 520px) { #joy { left: 150px !important; bottom: 14px !important; } }
+        body.touch #info-card { min-width: 0; width: 158px; padding: 8px 10px; gap: 4px; }
+        body.touch #info-card #current-location, body.touch #info-card button { display: none; }
+        body.touch #info-card .text-xl { font-size: 15px; }
+        body.touch #stars-card { padding: 4px 8px; } body.touch #stars-card > span { display: none; }
+        body.touch #mission-card { max-width: 170px; padding: 8px; } body.touch #mission-title { font-size: 10px; } body.touch #mission-desc { font-size: 11px; }
+        body.touch #minimapCanvas:not(.mm-big) { width: 110px; height: 110px; }
+        body.touch #minimapCanvas + div { display: none; }
+        body.touch #minimapCanvas.mm-big { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 12; opacity: .88; pointer-events: none; }
+        body.touch #hp-ui { left: 16px !important; bottom: 132px !important; transform: none !important; width: 110px !important; font-size: 10px !important; }
+        body.touch #arrest-ui { bottom: auto !important; top: 26% !important; width: 200px !important; }
+        body.touch #vehicle-hud { position: fixed; left: 16px; bottom: 164px; width: 110px; min-width: 0; padding: 6px 8px; z-index: 11; }
+        body.touch #vehicle-hud > div:nth-child(2) { display: none; }
+        body.touch #vehicle-hud > div:first-child { flex-direction: column; align-items: flex-start; }
+        body.touch #vehicle-name { font-size: 10px; } body.touch #vehicle-speed { font-size: 13px; }
+        </style>
+</head>
+<body class="text-white">
+
+    <div id="game-container">
+        <div id="three-canvas-container" class="w-full h-full"></div>
+
+        <!-- FPS Crosshair -->
+        <div id="crosshair"></div>
+
+        <div id="instructions-overlay">
+            <div class="hud-card rounded-3xl p-5 w-full max-w-md text-center border border-yellow-500/50 shadow-2xl" style="max-height:94vh;overflow-y:auto">
+                <div id="topbar" class="flex items-center justify-between mb-3 gap-2"><div id="acct-box" class="flex items-center gap-2 text-xs text-gray-200"></div><button id="open-settings" type="button" class="px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-600 text-xs font-bold text-gray-200 cursor-pointer">⚙ 設定</button></div>
+                <h1 class="text-2xl font-black text-yellow-400 mb-1 tracking-wider">GT-CHIAYI 3D</h1>
+                <p class="text-gray-300 mb-2 text-xs">主角：<span class="hero-name">胡葆</span> ｜ 嘉義市街區版</p>
+                <div id="hero-select" class="grid grid-cols-2 gap-2 mb-3"></div>
+                
+                <details class="mb-3 text-left"><summary class="cursor-pointer text-xs text-yellow-400 font-bold py-1">📖 操作說明（點開查看）</summary>
+<div class="text-left bg-gray-900/90 p-3 rounded-2xl text-xs space-y-1.5 mt-1 border border-gray-700/80">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1"><span>🖱️ 視角旋轉:</span><span class="text-yellow-400 font-bold">直接移動滑鼠 (游標已隱藏)</span></div>
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1"><span>🏃 移動方向:</span><span class="text-yellow-400 font-bold">W, A, S, D / 方向鍵 (Shift 加速)</span></div>
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1"><span>🚗 上下車/搶車:</span><span class="text-yellow-400 font-bold">F 鍵 或 Enter</span></div>
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1"><span>📍 接取任務/互動:</span><span class="text-yellow-400 font-bold">E 鍵 (火車站/噴水池)</span></div>
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1"><span>👊 打人(開槍) / 🗺️ 放大地圖 / ⏸ 暫停:</span><span class="text-yellow-400 font-bold">滑鼠左鍵 / M / Esc</span></div>
+<div class="flex justify-between items-center border-b border-gray-800 pb-1"><span>🏎️ 漂移:</span><span class="text-yellow-400 font-bold">開車時按住 Space + 左右轉向</div>
+<div class="flex justify-between items-center"><span>🎥 切換視角:</span><span class="text-yellow-400 font-bold">C 鍵 (第一人稱 / 第三人稱)</span></div>
+<div class="flex justify-between items-center"><span>🔫 槍店 / 換武器:</span><span class="text-yellow-400 font-bold">靠近嘉義槍店按 E ／ 數字鍵 1~5、X</span></div>
+                </div>
+
+                </details>
+                <button id="start-btn" type="button" class="w-full py-3 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 text-black font-black text-base rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer">
+                    🚀 進入擬真嘉義 (START GAME)
+                </button>
+            </div>
+        </div>
+
+        <div class="absolute top-4 left-4 right-4 flex justify-between items-start z-10 pointer-events-none">
+            <!-- Health, Cash & Location -->
+            <div id="info-card" class="hud-card rounded-2xl p-4 flex flex-col gap-2 min-w-[240px] pointer-events-auto">
+                <div class="flex items-center justify-between border-b border-gray-700/60 pb-2">
+                    <span class="text-xs font-black tracking-widest text-yellow-400">主角：<span class="hero-name">胡葆</span></span>
+                    <span id="current-location" class="text-xs font-bold text-gray-300">📍 中央噴水池圓環</span>
+                </div>
+                <!-- Health Bar -->
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-heart text-red-500"></i>
+                    <div class="w-full bg-gray-800 rounded-full h-3 overflow-hidden border border-gray-600">
+                        <div id="health-bar" class="bg-gradient-to-r from-red-600 to-red-400 h-full transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                </div>
+                <!-- Cash -->
+                <div class="flex items-center justify-between mt-1">
+                    <span class="text-xs text-gray-400">資產現金:</span>
+                    <span id="cash-display" class="font-mono text-xl font-black text-green-400">$ 2,500</span>
+                </div>
+                <div id="cloud-line" class="text-[11px] font-bold flex items-center gap-1.5 border-t border-gray-700/60 pt-1.5" style="color:#9ca3af"><span style="font-size:14px">💾</span><span>本機存檔（未上雲端）</span></div>
+                <button id="cam-toggle-btn" class="mt-1 text-[11px] bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 py-1 px-2 rounded border border-yellow-500/40 font-bold flex items-center justify-center gap-1 cursor-pointer">
+                    <i class="fas fa-camera"></i> 切換視角 (C)</button><button id="pause-btn" type="button" class="mt-1 text-[11px] bg-red-500/20 hover:bg-red-500/40 text-red-300 py-1 px-2 rounded border border-red-500/40 font-bold flex items-center justify-center gap-1 cursor-pointer"><i class="fas fa-pause"></i> 暫停 (Esc)
+                </button>
+            </div>
+
+            <!-- Wanted Stars & Mission Card -->
+            <div class="flex flex-col items-end gap-3 pointer-events-auto">
+                <div id="stars-card" class="hud-card rounded-2xl px-4 py-2 flex items-center gap-2">
+                    <span class="text-xs text-gray-400 font-bold">通緝星級:</span>
+                    <div id="stars-container" class="flex gap-1 text-lg text-gray-600">
+                        <i class="fas fa-star star-1"></i>
+                        <i class="fas fa-star star-2"></i>
+                        <i class="fas fa-star star-3"></i>
+                        <i class="fas fa-star star-4"></i>
+                        <i class="fas fa-star star-5"></i>
+                    </div>
+                </div>
+
+                <!-- Mission Card -->
+                <div id="mission-card" class="hud-card rounded-2xl p-4 max-w-sm border-l-4 border-yellow-500 hidden">
+                    <div class="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-1" id="mission-title">任務進行中</div>
+                    <div class="text-sm font-medium text-gray-200" id="mission-desc">前往文化路夜市外送火雞肉飯！</div>
+                    <div class="mt-2 text-xs text-gray-400 flex justify-between items-center">
+                        <span>剩餘時間: <strong id="mission-timer" class="text-white">60s</strong></span>
+                        <span class="text-green-400 font-bold" id="mission-reward">+$1,200</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-4 left-4 right-4 flex justify-between items-end z-10 pointer-events-none">
+            <!-- Minimap Canvas -->
+            <div class="pointer-events-auto relative">
+                <canvas id="minimapCanvas" width="150" height="150" style="cursor:pointer"></canvas>
+                <div class="absolute bottom-1 right-1 bg-black/70 text-[10px] px-1.5 py-0.5 rounded text-yellow-400 font-bold">GPS・點擊放大</div>
+            </div>
+
+            <!-- Vehicle Speedometer HUD -->
+                    <div id="vehicle-hud" class="hud-card rounded-2xl p-4 min-w-[220px] hidden pointer-events-auto border border-yellow-500/40">
+                <div class="flex items-center justify-between mb-1">
+                    <span id="vehicle-name" class="font-bold text-yellow-400">小黃計程車</span>
+                    <span id="vehicle-speed" class="text-base font-mono font-black text-green-400">0 KM/H</span>
+                </div>
+                <div class="text-[11px] text-gray-400 mb-1">車輛結構完整度</div>
+                <div class="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden border border-gray-700">
+                    <div id="vehicle-health-bar" class="bg-gradient-to-r from-blue-600 to-cyan-400 h-full transition-all duration-200" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="pause-overlay" class="absolute inset-0 bg-black/75 backdrop-blur-sm z-40 flex items-center justify-center hidden"><div class="hud-card rounded-3xl p-8 max-w-md w-full text-center">
+<h1 class="text-3xl font-black text-yellow-400 mb-4">⏸ 遊戲暫停</h1>
+<div class="text-left bg-gray-900/90 p-4 rounded-2xl text-xs space-y-1.5 mb-5 border border-gray-700/80">
+<div class="flex justify-between"><span>🏃 移動</span><b class="text-yellow-400">W A S D / 方向鍵</b></div>
+<div class="flex justify-between"><span>💨 衝刺</span><b class="text-yellow-400">Shift</b></div>
+<div class="flex justify-between"><span>🖱️ 轉動視角</span><b class="text-yellow-400">移動滑鼠</b></div>
+<div class="flex justify-between"><span>👊 打人</span><b class="text-yellow-400">滑鼠左鍵 / Q</b></div>
+<div class="flex justify-between"><span>🚗 上下車 / 搶車</span><b class="text-yellow-400">F / Enter</b></div>
+<div class="flex justify-between"><span>🏎️ 漂移 (開車)</span><b class="text-yellow-400">空白鍵 + A/D</b></div>
+<div class="flex justify-between"><span>📣 喇叭 / 接任務</span><b class="text-yellow-400">E</b></div>
+<div class="flex justify-between"><span>🎥 切換視角</span><b class="text-yellow-400">C</b></div>
+<div class="flex justify-between"><span>🔫 槍店 / 換武器</span><b class="text-yellow-400">E（槍店旁）/ 1~5、X</b></div>
+<div class="flex justify-between"><span>🗺️ 小地圖放大</span><b class="text-yellow-400">M</b></div>
+<div class="flex justify-between"><span>⏸ 暫停 / 繼續</span><b class="text-yellow-400">Esc</b></div>
+<div class="text-[11px] text-gray-400 pt-1">⭐ 打路人、撞人、搶車都會增加通緝星級，警察會追捕你！</div></div>
+<button onclick="openSettings()" class="px-6 py-3 mr-2 bg-gray-700 text-white font-extrabold rounded-2xl cursor-pointer">⚙ 設定</button><button onclick="togglePause()" class="px-8 py-3 bg-yellow-500 text-black font-extrabold rounded-2xl cursor-pointer">繼續遊戲 (Esc)</button></div></div>
+        <div id="settings-panel" class="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center hidden" style="z-index:60"><div class="hud-card rounded-3xl p-6 w-full max-w-sm" style="max-height:94vh;overflow-y:auto">
+<h2 class="text-2xl font-black text-yellow-400 mb-4 text-center">⚙ 設定</h2>
+<div class="space-y-3 text-sm text-gray-200">
+<label class="block">🖱️ 視角靈敏度<input id="set-sens" type="range" min="0.3" max="2" step="0.1" class="w-full"></label>
+<label class="block">🔊 音量<input id="set-vol" type="range" min="0" max="1" step="0.05" class="w-full"></label>
+<label class="flex justify-between items-center">🌗 陰影<input id="set-shadow" type="checkbox"></label>
+<label class="flex justify-between items-center">↕ 反轉上下視角<input id="set-invert" type="checkbox"></label>
+<label class="flex justify-between items-center">🗺️ 顯示小地圖<input id="set-minimap" type="checkbox"></label>
+<label class="flex justify-between items-center">🚗 車輛／人群數量<select id="set-density" class="bg-gray-800 border border-gray-600 rounded px-2 py-1"><option value="0.5">少（較順）</option><option value="1">標準</option><option value="1.5">多</option></select></label>
+<div class="pt-2 border-t border-gray-700"><div class="font-bold mb-1">☁ 雲端存檔</div>
+<div id="cloud-status-text" class="text-xs text-gray-300 mb-2">檢查中…</div>
+<button id="cloud-check-btn" type="button" class="w-full py-1.5 rounded-lg bg-emerald-600 font-bold cursor-pointer">立即儲存並確認雲端</button>
+<div id="cloud-check-result" class="text-xs mt-1 break-all"></div>
+<button id="cloud-diag-btn" type="button" class="mt-2 w-full py-1.5 rounded-lg bg-sky-600 font-bold cursor-pointer">🩺 診斷儲存問題</button>
+<div id="cloud-diag-result" class="text-xs mt-1 text-left" style="white-space:pre-wrap;word-break:break-all;line-height:1.6"></div></div>
+<div class="pt-2 border-t border-gray-700"><div class="font-bold mb-1">📦 存檔碼（學校網路擋雲端時用）</div>
+<div class="text-xs text-gray-400 mb-1">在學校按「匯出」複製存檔碼，回家貼到這裡按「匯入」就能接續，完全不需要雲端。</div>
+<textarea id="save-code" rows="3" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs" style="cursor:text !important;user-select:text;-webkit-user-select:text" placeholder="匯出後存檔碼會出現在這裡；要匯入就把存檔碼貼在這裡"></textarea>
+<div class="flex gap-2 mt-1"><button id="save-export" type="button" class="flex-1 py-1.5 rounded-lg bg-indigo-600 font-bold cursor-pointer">匯出（複製）</button><button id="save-import" type="button" class="flex-1 py-1.5 rounded-lg bg-purple-600 font-bold cursor-pointer">匯入</button></div>
+<div id="save-code-msg" class="text-xs mt-1 break-all"></div></div>
+<div class="pt-2 border-t border-gray-700"><div class="font-bold mb-1">🔐 帳號登入（Supabase）</div>
+<div class="text-xs text-gray-400">回主畫面按「🔐 登入 / 註冊」即可；登入後存檔會自動同步到雲端。</div></div>
+<div id="density-note" style="display:none" class="text-xs text-amber-300">數量要重新載入頁面才會生效。<button id="set-reload" type="button" class="underline ml-1 cursor-pointer">立即重新載入</button></div>
+</div>
+<div class="flex gap-2 mt-5"><button id="set-reset" type="button" class="flex-1 py-2 rounded-xl bg-gray-700 font-bold cursor-pointer">恢復預設</button><button id="set-close" type="button" class="flex-1 py-2 rounded-xl bg-yellow-500 text-black font-extrabold cursor-pointer">完成</button></div>
+</div></div>
+        <div id="auth-modal" class="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center hidden" style="z-index:70"><div class="hud-card rounded-3xl p-6 w-full max-w-sm border border-gray-600 shadow-2xl">
+<div class="flex items-center justify-between mb-3"><h2 class="text-xl font-black text-yellow-400">🔐 帳號登入</h2><button id="auth-close" type="button" class="px-2 py-1 rounded-lg bg-gray-700 text-xs font-bold cursor-pointer">✕</button></div>
+<div class="flex rounded-lg overflow-hidden border border-gray-600 text-sm font-bold mb-3"><button id="auth-tab-login" type="button">登入</button><button id="auth-tab-register" type="button">註冊新帳號</button></div>
+<div class="space-y-2.5">
+<input id="auth-user" type="text" maxlength="40" autocomplete="username" placeholder="帳號（例如：王小明 或 wang01）" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm font-bold" style="cursor:text !important">
+<div class="relative"><input id="auth-pass" type="password" autocomplete="current-password" placeholder="密碼（至少 6 個字元）" class="w-full bg-gray-800 border border-gray-600 rounded-lg pl-3 pr-14 py-2 text-sm font-bold" style="cursor:text !important"><button id="auth-eye" type="button" class="absolute inset-y-0 right-0 px-3 text-xs font-bold text-gray-300 cursor-pointer">顯示</button></div>
+<input id="auth-pass2" type="password" autocomplete="new-password" placeholder="再輸入一次密碼" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm font-bold" style="cursor:text !important;display:none">
+<div id="auth-err" class="text-xs text-red-300 bg-red-900/40 border border-red-500/40 rounded-lg px-2.5 py-1.5" style="display:none"></div>
+<button id="auth-submit" type="button" class="w-full py-2.5 rounded-xl bg-yellow-500 text-black font-extrabold cursor-pointer">登入</button>
+</div>
+<p class="text-xs text-gray-400 mt-3">第一次玩請先切到「註冊新帳號」建立帳號，之後用同一組帳號密碼登入，存檔就會跟著你。</p>
+</div></div>
+        <div id="shop-overlay" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center hidden"><div class="hud-card rounded-3xl p-5 w-full max-w-md border border-red-500/50 shadow-2xl" style="max-height:94vh;overflow-y:auto">
+<div class="flex items-center justify-between mb-1"><h1 class="text-2xl font-black text-red-400">🔫 嘉義槍店</h1><span id="shop-cash" class="font-mono font-black text-green-400">$ 0</span></div>
+<p class="text-xs text-gray-400 mb-3">老闆：「要什麼自己看，別惹到警察就好。」（遊戲內虛構商店）</p>
+<div id="shop-list" class="space-y-2"></div>
+<div class="text-[11px] text-gray-400 mt-3">買到的武器用數字鍵 1~5 切換（手機按「換武器」），滑鼠左鍵／打人鍵攻擊。<br>滑鼠沒出現時請輕輕移動一下；也可按鍵盤 1~4 直接購買／補彈（由上到下）。</div>
+<button id="shop-close" type="button" class="w-full mt-3 py-3 bg-yellow-500 text-black font-extrabold rounded-2xl cursor-pointer">離開 (E / Esc)</button></div></div>
+        <div id="toast-msg" class="absolute top-24 left-1/2 -translate-x-1/2 hud-card border-yellow-500/60 text-yellow-300 px-6 py-2.5 rounded-full font-bold text-sm tracking-wide shadow-2xl transition-all duration-300 opacity-0 -translate-y-4 pointer-events-none z-30 flex items-center gap-2">
+            <i class="fas fa-bullhorn text-yellow-400"></i> <span id="toast-text">歡迎來到擬真第一人稱嘉義！</span>
+        </div>
+
+        <div id="modal-overlay" class="absolute inset-0 bg-black/85 backdrop-blur-md z-40 flex items-center justify-center hidden">
+            <div class="hud-card rounded-3xl p-8 max-w-md w-full text-center border border-yellow-500/40 shadow-2xl">
+                <h1 id="modal-title" class="text-3xl font-black text-yellow-400 mb-2">任務完成！</h1>
+                <p id="modal-desc" class="text-gray-300 mb-6">你成功送達了美食！</p>
+                <button id="modal-btn" onclick="closeModal()" class="w-full py-3.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-extrabold rounded-2xl text-lg hover:brightness-110 active:scale-95 transition cursor-pointer shadow-lg">繼續冒險</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class SoundFX {
+            constructor() { this.ctx = null; }
+            init() { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = SET.vol; this.master.connect(this.ctx.destination); } }
+            playEngine() {
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(60, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.015, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.master);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.1);
+            }
+            playHonk() {
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.master);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+            }
+            playCash() {
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1046.5, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(1318.5, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.35);
+                osc.connect(gain);
+                gain.connect(this.master);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.35);
+            }
+            playShot(heavy) {
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                const len = Math.floor(this.ctx.sampleRate * (heavy ? 0.18 : 0.12)), buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = buf.getChannelData(0);
+                for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+                const src = this.ctx.createBufferSource(); src.buffer = buf;
+                const gain = this.ctx.createGain(); gain.gain.value = heavy ? 0.5 : 0.4;
+                src.connect(gain); gain.connect(this.master); src.start();
+            }
+            playThud() {
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(45, this.ctx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.14);
+                osc.connect(gain); gain.connect(this.master);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.14);
+            }
+            playSiren() {
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(700, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(1000, this.ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.master);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.25);
+            }
+        }
+
+        const sfx = new SoundFX();
+        const MAP_SIZE = 1200;
+        let scene, camera, renderer;
+        let minimapCanvas, minimapCtx;
+
+        // ===== Supabase 設定（遊戲專用專案；publishable key 本來就可以公開，安全靠 RLS）=====
+        const SUPABASE_URL = "https://iefxfvflbnsxurbkwmoc.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_p_-yKcPOoU0UWupVJZGRvA_S_JOkQxe";
+        const AUTH_EMAIL_DOMAIN = 'scoreboard-user.com';   // 內部用：帳號會轉成「帳號@此網域」，不會寄信
+        const SAVE_TABLE = 'gta_saves';
+        const SB = { client: null, user: null, initErr: null };
+        const DEF_SET = { sens: 1, vol: .8, shadow: true, invertY: false, density: 1, minimap: true };
+        let SET = Object.assign({}, DEF_SET); try { Object.assign(SET, JSON.parse(localStorage.getItem('gtc_set') || '{}')); } catch (e) {}
+        let USER = null;
+        function saveSet() { try { localStorage.setItem('gtc_set', JSON.stringify(SET)); } catch (e) {} applySet(); }
+        function applySet() { if (sfx.master) sfx.master.gain.value = SET.vol; if (typeof sun !== 'undefined' && sun) sun.castShadow = SET.shadow;
+            if (minimapCanvas && minimapCanvas.parentElement) minimapCanvas.parentElement.style.display = SET.minimap ? '' : 'none'; }
+        const saveKey = () => 'gtc_save_' + (USER ? USER.sub : 'guest');
+        // ===== 存檔：本機 + Supabase 雲端 =====
+        let lastSig = null, lastChange = 0, cloudSig = null, cloudAt = 0, cloudReady = false, cloudState = 'guest', cloudMsg = '', cloudBusy = false;
+        const saveData = () => ({ hero: HERO, cash: player.cash, wp: owned, ammo: ammo, cur: curW });
+        function setCloud(state, info) {
+            cloudState = state; cloudMsg = info || '';
+            const t = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+            const map = { guest: ['💾', '訪客模式：只存在這台裝置，登入帳號才會上雲端', '#9ca3af'], saving: ['⏳', '正在儲存到雲端…', '#fde68a'], saved: ['☁️✅', '已儲存到雲端 ' + t, '#86efac'], error: ['⚠️', '雲端儲存失敗：' + (info || ''), '#fca5a5'], wait: ['☁️', '雲端同步中…', '#fde68a'] };
+            const m = map[state] || map.guest;
+            let b = document.getElementById('cloud-badge');
+            if (!b) { b = document.createElement('div'); b.id = 'cloud-badge'; b.style.cssText = 'position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:21;pointer-events:none;font-weight:900;font-size:12px;padding:3px 10px;border-radius:999px;background:rgba(15,23,42,.8);border:1px solid rgba(255,255,255,.2);white-space:nowrap'; document.body.appendChild(b); }
+            const hm0 = null;
+            const hm = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            const short = { guest: '本機存檔（未上雲端）', saving: '儲存中…', saved: '已存雲端 ' + hm, error: '雲端儲存失敗', wait: '雲端同步中…' }[state] || '';
+            b.innerHTML = '<span style="font-size:14px">' + m[0] + '</span> <span style="font-size:' + (IS_TOUCH ? 10 : 12) + 'px">' + short + '</span>'; b.style.color = m[2]; b.title = m[1];
+            { const cl = document.getElementById('cloud-line'); if (cl) { cl.innerHTML = '<span style="font-size:14px">' + m[0] + '</span><span>' + short + (state === 'error' && info ? '：' + (info === 'unavailable' ? '連不上雲端（可能被學校網路擋住），進度仍存在本機；可用設定裡的存檔碼帶走' : info) : '') + '</span>'; cl.style.color = m[2]; cl.title = m[1]; } }
+            b.style.display = IS_TOUCH ? 'none' : (gameStarted || state === 'error' ? '' : 'none');
+            const st = document.getElementById('cloud-status-text'); if (st) { st.textContent = m[0] + ' ' + m[1]; st.style.color = m[2]; }
+        }
+        function saveProgress() {
+            const d = saveData(), sig = JSON.stringify(d);
+            if (sig !== lastSig) { lastSig = sig; lastChange = Date.now(); }
+            try { localStorage.setItem(saveKey(), JSON.stringify(Object.assign({ t: lastChange }, d))); } catch (e) {}
+            cloudPush(false);
+        }
+        const tmo = (p, ms = 20000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('連線逾時（' + ms / 1000 + ' 秒沒有回應）'), { code: 'unavailable' })), ms))]);
+        // ===== 雲端傳輸：Supabase（資料表 gta_saves，每個帳號一列，RLS 限制只能讀寫自己的）=====
+        const sbErr = e => Object.assign(new Error((e && e.message) || 'error'), { code: (e && e.code) || (/fetch|network/i.test((e && e.message) || '') ? 'unavailable' : 'error') });
+        async function dbGet() {
+            const { data, error } = await tmo(SB.client.from(SAVE_TABLE).select('data').eq('user_id', USER.sub).maybeSingle(), 12000);
+            if (error) throw sbErr(error);
+            const row = data ? data.data : null;
+            return { exists: () => !!row, data: () => row };
+        }
+        async function dbSet(obj) {
+            const { error } = await tmo(SB.client.from(SAVE_TABLE).upsert({ user_id: USER.sub, data: obj, updated_at: new Date().toISOString() }), 12000);
+            if (error) throw sbErr(error);
+        }
+        async function cloudPush(force) {
+            if (!USER || !SB.user || cloudBusy) return false;
+            if (!cloudReady) { if (!cloudSyncing && Date.now() - cloudSyncTry > 8000) cloudSync(); return false; }   // 之前同步失敗 → 自動重試，不再卡死
+            const d = saveData(), sig = JSON.stringify(d);
+            if (!force && sig === cloudSig) { if (cloudState !== 'saved') setCloud('saved'); return true; }          // 內容其實已經在雲端 → 把舊的失敗狀態清掉
+            if (!force && Date.now() - cloudAt < 10000) return true;
+            cloudBusy = true; setCloud('saving');
+            try {
+                await dbSet(Object.assign({}, d, { t: lastChange || Date.now(), name: USER.name || '' }));
+                cloudSig = sig; cloudAt = Date.now(); setCloud('saved'); return true;
+            } catch (e) { setCloud('error', e.code || e.message); return false; }
+            finally { cloudBusy = false; }
+        }
+        let cloudSyncing = false, cloudSyncTry = 0;
+        async function cloudSync() {
+            if (!USER || !SB.user) { setCloud('guest'); return; }
+            if (cloudSyncing) return;
+            cloudSyncing = true; cloudSyncTry = Date.now();
+            setCloud('wait');
+            try {
+                const snap = await dbGet(), r = snap.exists() ? snap.data() : null;
+                if (r && (r.t || 0) > lastChange) {
+                    const i = HEROES.findIndex(h => h.n === r.hero); if (i >= 0) setHero(i);
+                    restoreWeapons(r);
+                    if (typeof r.cash === 'number') { player.cash = r.cash; const e = document.getElementById('cash-display'); if (e) e.innerText = `$ ${player.cash}`; }
+                    lastChange = r.t; lastSig = JSON.stringify(saveData());
+                    try { localStorage.setItem(saveKey(), JSON.stringify(Object.assign({ t: lastChange }, saveData()))); } catch (e) {}
+                }
+                cloudReady = true; cloudSig = null; await cloudPush(true);
+            } catch (e) { setCloud('error', e.code || e.message); }
+            finally { cloudSyncing = false; }
+        }
+
+        // ===== 雲端存檔診斷：逐關檢查，指出卡在哪 =====
+        function diagHint(code, msg) {
+            const c = String(code || '') + ' ' + String(msg || '');
+            if (/PGRST205|42P01|schema cache|does not exist/i.test(c)) return '→ 找不到資料表 gta_saves：到 Supabase → SQL Editor，貼上 supabase_gta_setup.sql 的內容並按 Run。';
+            if (/42501|row-level security|permission/i.test(c)) return '→ 安全規則（RLS）不允許寫入：請確認 supabase_gta_setup.sql 有完整執行成功（包含 policy）。';
+            if (/JWT|PGRST301|PGRST303|unauthenticated/i.test(c)) return '→ 登入狀態失效，請登出後重新登入。';
+            if (/unavailable|network|offline|Failed to fetch|timeout|逾時/i.test(c)) return '→ 連不上 Supabase。常見原因：①免費專案閒置約一週會被暫停，到 Supabase 後台按「Restore project」；②廣告／隱私擴充功能或 VPN 擋住 supabase.co；③公司／學校網路擋掉，換手機熱點試試。';
+            if (/api key|apikey/i.test(c)) return '→ Supabase 金鑰不正確，請檢查程式碼開頭的 SUPABASE_ANON_KEY。';
+            return '→ 未知錯誤，請把上面的錯誤碼回報給我。';
+        }
+        async function cloudDiagnose() {
+            const out = document.getElementById('cloud-diag-result'); if (!out) return;
+            const lines = []; const show = () => { out.textContent = lines.join('\n'); };
+            const ok = t => { lines.push('✅ ' + t); show(); }, bad = (t, h) => { lines.push('❌ ' + t + (h ? '\n   ' + h : '')); show(); }, warn = t => { lines.push('⚠️ ' + t); show(); };
+            lines.length = 0; lines.push('⏳ 診斷中…'); show(); lines.length = 0;
+            // 1 環境
+            if (location.protocol === 'file:') warn('1. 用「檔案」方式開啟（file://）：多數情況仍可登入，但建議放到網站空間（GitHub Pages、Netlify 等）再開。');
+            else ok('1. 網址：' + location.origin);
+            if (navigator.onLine === false) { bad('2. 瀏覽器目前離線', '→ 請先連上網路。'); return; }
+            // 2 本機
+            try { localStorage.setItem('gtc_diag', '1'); localStorage.removeItem('gtc_diag'); ok('2. 本機儲存正常（localStorage 可寫）'); } catch (e) { bad('2. 本機儲存被擋（無痕模式或瀏覽器設定）', '→ 關閉無痕模式，或允許網站儲存資料。'); }
+            // 3 設定
+            if (!SUPABASE_URL || !SUPABASE_ANON_KEY) { bad('3. 沒有 Supabase 設定', '→ 請檢查程式碼開頭的 SUPABASE_URL 與 SUPABASE_ANON_KEY。'); return; }
+            ok('3. Supabase 專案：' + SUPABASE_URL.replace('https://', '').split('.')[0]);
+            // 4 模組
+            if (SB.initErr) { bad('4. Supabase 程式庫載入失敗：' + (SB.initErr.message || ''), '→ 常見：網路擋掉 cdn.jsdelivr.net，或瀏覽器版本太舊。'); return; }
+            if (!SB.client) { bad('4. Supabase 還在載入或沒載入成功', '→ 等幾秒再按一次；若一直如此，請重新整理頁面。'); return; }
+            ok('4. Supabase 登入模組已載入');
+            // 5 登入
+            if (!USER) { bad('5. 尚未登入（目前是訪客，只存在這台裝置）', '→ 回主畫面按「🔐 登入 / 註冊」。'); return; }
+            ok('5. 已登入：' + (USER.name || USER.sub));
+            // 5b 連線測試
+            try { await tmo(fetch(SUPABASE_URL, { mode: 'no-cors', cache: 'no-store' }), 8000); ok('5b. 連得到 Supabase 伺服器（網路沒被擋）'); }
+            catch (e) { bad('5b. 連不到 Supabase', '→ 被廣告攔截／隱私擴充功能、VPN、公司或學校網路擋住；或免費專案被暫停（到後台按 Restore project）。'); return; }
+            // 6 讀
+            let remote = null;
+            try { const snap = await dbGet(); remote = snap.exists() ? snap.data() : null; ok('6. 讀取雲端成功（' + (remote ? '已有存檔，現金 $' + remote.cash : '目前還沒有存檔') + '）'); }
+            catch (e) { bad('6. 讀取雲端失敗：' + (e.code || e.message), diagHint(e.code, e.message)); return; }
+            // 7 寫
+            try { if (remote && (remote.t || 0) > lastChange) { cloudReady = false; await cloudSync(); ok('6b. 雲端存檔比這台新，已自動載入雲端版本（不會被舊資料覆蓋）'); } else { cloudReady = true; saveProgress(); } const done = await cloudPush(true); if (!done) { bad('7. 寫入雲端失敗：' + cloudMsg, diagHint(cloudMsg, cloudMsg)); return; } ok('7. 寫入雲端成功'); }
+            catch (e) { bad('7. 寫入雲端失敗：' + (e.code || e.message), diagHint(e.code, e.message)); return; }
+            // 8 讀回
+            try { const snap = await dbGet(), r = snap.exists() ? snap.data() : null; if (r && r.cash === player.cash && r.hero === HERO) ok('8. 讀回比對一致：' + r.hero + ' / $' + r.cash); else warn('8. 讀回內容不一致，再按一次診斷'); }
+            catch (e) { bad('8. 讀回失敗：' + (e.code || e.message), diagHint(e.code, e.message)); return; }
+            lines.push('\n🎉 全部通過：雲端存檔正常運作。'); show();
+        }
+        // ===== 存檔碼 =====
+        function exportCode() { return btoa(unescape(encodeURIComponent(JSON.stringify(Object.assign({ v: 1, t: Date.now() }, saveData()))))); }
+        function importCode(str) {
+            let o; try { o = JSON.parse(decodeURIComponent(escape(atob(String(str).replace(/\s+/g, ''))))); } catch (e) { throw new Error('存檔碼格式不對，請完整複製'); }
+            if (!o || typeof o.cash !== 'number' || typeof o.hero !== 'string') throw new Error('這不是有效的存檔碼');
+            const wp = { fist: true }, am = {};
+            WEAPONS.forEach(w => { if (o.wp && o.wp[w.id]) wp[w.id] = true; if (w.type === 'gun' && o.ammo && typeof o.ammo[w.id] === 'number') am[w.id] = Math.max(0, Math.min(300, Math.floor(o.ammo[w.id]))); });
+            const i = HEROES.findIndex(h => h.n === o.hero); if (i >= 0) setHero(i);
+            restoreWeapons({ wp, ammo: am, cur: wp[o.cur] ? o.cur : 'fist' });
+            player.cash = Math.max(0, Math.floor(o.cash)); const e = document.getElementById('cash-display'); if (e) e.innerText = `$ ${player.cash}`;
+            lastSig = ''; saveProgress();
+        }
+        function setupSaveCode() {
+            const ta = document.getElementById('save-code'), msg = document.getElementById('save-code-msg'); if (!ta) return;
+            const say = (t, c) => { msg.textContent = t; msg.style.color = c; };
+            document.getElementById('save-export').onclick = async () => {
+                ta.value = exportCode(); ta.select();
+                try { await navigator.clipboard.writeText(ta.value); say('✅ 已複製存檔碼（目前現金 $' + player.cash + '）。貼到記事本或傳給自己保存。', '#86efac'); }
+                catch (e) { say('✅ 存檔碼已產生，請手動全選複製上面的文字。', '#86efac'); }
+            };
+            document.getElementById('save-import').onclick = () => {
+                if (!ta.value.trim()) { say('請先把存檔碼貼到上面的框框。', '#fca5a5'); return; }
+                try { importCode(ta.value); say('✅ 匯入成功：' + HERO + '，現金 $' + player.cash, '#86efac'); } catch (e) { say('❌ ' + e.message, '#fca5a5'); }
+            };
+        }
+        async function cloudVerify() {
+            const out = document.getElementById('cloud-check-result'); if (!out) return;
+            const say = (t, c) => { out.textContent = t; out.style.color = c; };
+            if (!USER) { say('❌ 尚未登入：目前只存在這台裝置，換裝置或清除瀏覽器資料就會消失。', '#fca5a5'); return; }
+            if (!SB.user) { say('❌ Supabase 還沒載入完成，請等幾秒再按。', '#fca5a5'); return; }
+            say('⏳ 儲存並讀回確認中…', '#fde68a');
+            if (!cloudReady) await cloudSync();
+            saveProgress(); const ok = await cloudPush(true);
+            if (!ok) { say('❌ 寫入失敗：' + cloudMsg + '（多半是還沒執行 supabase_gta_setup.sql 建立資料表，或 RLS 規則沒設好）', '#fca5a5'); return; }
+            try {
+                const snap = await dbGet(), r = snap.exists() ? snap.data() : null;
+                if (r && r.cash === player.cash && r.hero === HERO) say('✅ 已確認雲端有你的存檔：' + r.hero + '，現金 $' + r.cash + '（' + new Date().toLocaleTimeString('zh-TW', { hour12: false }) + '）', '#86efac');
+                else say('⚠️ 寫入成功但讀回內容不一致，請再按一次。', '#fde68a');
+            } catch (e) { say('❌ 讀回失敗：' + (e.code || e.message), '#fca5a5'); }
+        }
+        function loadProgress() { try { const d = JSON.parse(localStorage.getItem(saveKey()) || 'null'); if (!d) { lastSig = JSON.stringify(saveData()); lastChange = 0; return; } lastChange = d.t || 0; const i = HEROES.findIndex(h => h.n === d.hero); if (i >= 0) setHero(i); restoreWeapons(d);
+            if (typeof d.cash === 'number') { player.cash = d.cash; const e = document.getElementById('cash-display'); if (e) e.innerText = `$ ${player.cash}`; } lastSig = JSON.stringify(saveData()); } catch (e) {} }
+        function openSettings() { if (document.pointerLockElement) document.exitPointerLock(); document.getElementById('settings-panel').classList.remove('hidden'); }
+        function closeSettings() { document.getElementById('settings-panel').classList.add('hidden'); }
+        function renderAccount() {
+            const box = document.getElementById('acct-box'); if (!box) return;
+            box.textContent = '';
+            if (USER) {
+                const av = document.createElement('span'); av.style.fontSize = '20px'; av.textContent = '👤';
+                const nm = document.createElement('span'); nm.className = 'font-bold'; nm.textContent = USER.name || '玩家';
+                const lo = document.createElement('button'); lo.type = 'button'; lo.className = 'underline text-gray-400 cursor-pointer'; lo.textContent = '登出';
+                lo.onclick = logoutAccount;
+                box.append(av, nm, lo); return;
+            }
+            const g = document.createElement('span'); g.className = 'text-gray-400'; g.textContent = '👤 訪客';
+            const b = document.createElement('button'); b.type = 'button'; b.className = 'px-3 py-1 rounded-lg bg-white text-gray-800 font-bold cursor-pointer'; b.textContent = '🔐 登入 / 註冊';
+            b.onclick = () => openAuth('login');
+            box.append(g, b);
+        }
+        // ===== 帳號：Supabase 帳號密碼（和記分板同一套）=====
+        const usernameToEmail = (name) => {
+            const raw = String(name || '').trim();
+            if (!raw) return null;
+            if (raw.includes('@')) return raw.toLowerCase();     // 直接輸入真實信箱也可以
+            const lower = raw.toLowerCase();
+            let local;
+            if (/^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/.test(lower) && !lower.includes('..')) local = lower;
+            else local = 'x' + Array.from(new TextEncoder().encode(lower)).map(b => b.toString(16).padStart(2, '0')).join('');   // 中文或特殊符號 → 十六進位
+            if (local.length > 60) return null;
+            return local + '@' + AUTH_EMAIL_DOMAIN;
+        };
+        const authErrorText = (err) => {
+            const c = (err && err.code) || '';
+            const m = String((err && err.message) || '').toLowerCase();
+            if (c === 'user_already_exists' || m.includes('already registered')) return '這個帳號已經有人註冊了，請換一個名稱，或切換到「登入」。';
+            if (c === 'invalid_credentials' || m.includes('invalid login credentials')) return '帳號或密碼錯誤。';
+            if (c === 'weak_password' || m.includes('password should be at least')) return '密碼太簡單，至少要 6 個字元。';
+            if (c === 'email_confirmation_required' || c === 'email_not_confirmed') return '這個 Supabase 專案還要求信箱驗證。請到 Supabase：Authentication → Sign In / Providers → Email，把「Confirm email」關掉；已經註冊過的帳號請到 Authentication → Users 刪除後重新註冊。';
+            if (c === 'email_address_invalid' || m.includes('is invalid')) return '這個帳號格式被 Supabase 拒絕。請改用你的真實 Email 當作帳號。';
+            if (c === 'over_request_rate_limit' || c === 'over_email_send_rate_limit' || (err && err.status === 429)) return '嘗試次數太多，請稍後再試。';
+            if (c === 'email_provider_disabled' || c === 'signup_disabled') return '尚未啟用 Email 註冊：Supabase → Authentication → Sign In / Providers → Email → 開啟。';
+            if (m.includes('failed to fetch')) return '連不上 Supabase，請檢查網路或廣告攔截擴充功能。';
+            return '操作失敗（' + (c || (err && err.message) || '未知錯誤') + '）';
+        };
+        let authMode = 'login', authBusy = false;
+        function renderAuthMode() {
+            const g = id => document.getElementById(id), reg = authMode === 'register';
+            g('auth-tab-login').className = 'flex-1 py-2 transition cursor-pointer ' + (reg ? 'bg-gray-800 text-gray-300' : 'bg-yellow-500 text-black');
+            g('auth-tab-register').className = 'flex-1 py-2 transition cursor-pointer ' + (reg ? 'bg-yellow-500 text-black' : 'bg-gray-800 text-gray-300');
+            g('auth-pass2').style.display = reg ? '' : 'none';
+            g('auth-submit').textContent = authBusy ? '處理中…' : (reg ? '註冊並登入' : '登入');
+            g('auth-pass').autocomplete = reg ? 'new-password' : 'current-password';
+        }
+        function setAuthErr(t) { const e = document.getElementById('auth-err'); if (!e) return; e.textContent = t || ''; e.style.display = t ? '' : 'none'; }
+        function openAuth(mode) {
+            if (document.pointerLockElement) document.exitPointerLock();
+            authMode = mode || 'login'; setAuthErr(''); renderAuthMode();
+            document.getElementById('auth-modal').classList.remove('hidden');
+            setTimeout(() => { const u = document.getElementById('auth-user'); if (u) u.focus(); }, 50);
+        }
+        function closeAuth() { const m = document.getElementById('auth-modal'); if (m) m.classList.add('hidden'); }
+        async function submitAuth() {
+            if (authBusy) return;
+            setAuthErr('');
+            if (!SB.client) { setAuthErr(SB.initErr ? '雲端程式庫載入失敗（可能被網路或擴充功能擋住），請重新整理或換網路。' : '雲端還在載入，請稍等幾秒再按。'); return; }
+            const g = id => document.getElementById(id);
+            const name = g('auth-user').value.trim(), pass = g('auth-pass').value, pass2 = g('auth-pass2').value;
+            const email = usernameToEmail(name);
+            if (!name) { setAuthErr('請輸入帳號。'); return; }
+            if (!email) { setAuthErr('帳號太長了，請縮短一點（約 9 個中文字或 40 個英數字以內）。'); return; }
+            if (!pass) { setAuthErr('請輸入密碼。'); return; }
+            if (authMode === 'register') {
+                if (pass.length < 6) { setAuthErr('密碼至少要 6 個字元。'); return; }
+                if (pass !== pass2) { setAuthErr('兩次輸入的密碼不一樣。'); return; }
+            }
+            authBusy = true; renderAuthMode();
+            try {
+                if (authMode === 'register') {
+                    const { data, error } = await SB.client.auth.signUp({ email, password: pass, options: { data: { display_name: name } } });
+                    if (error) throw error;
+                    if (!data.session) throw { code: 'email_confirmation_required' };
+                } else {
+                    const { error } = await SB.client.auth.signInWithPassword({ email, password: pass });
+                    if (error) throw error;
+                }
+                g('auth-pass').value = ''; g('auth-pass2').value = ''; g('auth-user').value = '';
+                closeAuth();
+            } catch (e) { console.error('帳號操作失敗:', e); setAuthErr(authErrorText(e)); }
+            finally { authBusy = false; renderAuthMode(); }
+        }
+        async function logoutAccount() { try { if (SB.client) await SB.client.auth.signOut(); } catch (e) { console.warn(e); } }
+        function setupAuthModal() {
+            const g = id => document.getElementById(id); if (!g('auth-modal')) return;
+            g('auth-tab-login').onclick = () => { authMode = 'login'; setAuthErr(''); renderAuthMode(); };
+            g('auth-tab-register').onclick = () => { authMode = 'register'; setAuthErr(''); renderAuthMode(); };
+            g('auth-submit').onclick = submitAuth; g('auth-close').onclick = closeAuth;
+            g('auth-eye').onclick = () => { const show = g('auth-pass').type === 'password'; g('auth-pass').type = show ? 'text' : 'password'; g('auth-pass2').type = show ? 'text' : 'password'; g('auth-eye').textContent = show ? '隱藏' : '顯示'; };
+            ['auth-user', 'auth-pass', 'auth-pass2'].forEach(id => { g(id).addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') submitAuth(); else if (e.key === 'Escape') closeAuth(); }); g(id).addEventListener('keyup', e => e.stopPropagation()); });
+            g('auth-modal').addEventListener('click', e => e.stopPropagation());
+            renderAuthMode();
+        }
+        function applyAuth(u) {
+            if (u && SB.user && SB.user.id === u.id) { SB.user = u; return; }   // 同一個人的 token 更新，不重新同步
+            SB.user = u || null;
+            const meta = u ? (u.user_metadata || {}) : {};
+            USER = u ? { sub: u.id, name: meta.display_name || (u.email || '').split('@')[0] || '玩家' } : null;
+            renderAccount(); loadProgress(); cloudReady = false; cloudSig = null;
+            if (USER) cloudSync(); else setCloud('guest');
+        }
+        async function initSupabase() {
+            if (!SUPABASE_URL || !SUPABASE_ANON_KEY) { SB.initErr = new Error('沒有 Supabase 設定'); return; }
+            try {
+                const m = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+                SB.client = m.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+                SB.client.auth.onAuthStateChange((event, session) => { setTimeout(() => applyAuth(session ? session.user : null), 0); });
+                renderAccount();
+            } catch (e) { SB.initErr = e; reportErr(e, 'supabase'); setCloud('error', 'Supabase 載入失敗'); }
+        }
+        function setupAccount() {
+            renderAccount(); loadProgress();
+            initSupabase();
+            document.getElementById('topbar').addEventListener('click', e => e.stopPropagation());
+            setInterval(() => { if (gameStarted) saveProgress(); }, 5000);
+            setCloud('guest'); const cb = document.getElementById('cloud-check-btn'); if (cb) cb.onclick = cloudVerify; const db2 = document.getElementById('cloud-diag-btn'); if (db2) db2.onclick = cloudDiagnose; setupSaveCode(); setupAuthModal();
+            window.addEventListener('pagehide', () => { if (gameStarted) saveProgress(); });
+        }
+        function setupSettings() {
+            const g = id => document.getElementById(id);
+            const sync = () => { g('set-sens').value = SET.sens; g('set-vol').value = SET.vol; g('set-shadow').checked = SET.shadow; g('set-invert').checked = SET.invertY; g('set-minimap').checked = SET.minimap; g('set-density').value = String(SET.density); };
+            sync();
+            g('set-sens').oninput = e => { SET.sens = +e.target.value; saveSet(); };
+            g('set-vol').oninput = e => { SET.vol = +e.target.value; saveSet(); };
+            g('set-shadow').onchange = e => { SET.shadow = e.target.checked; saveSet(); };
+            g('set-invert').onchange = e => { SET.invertY = e.target.checked; saveSet(); };
+            g('set-minimap').onchange = e => { SET.minimap = e.target.checked; saveSet(); };
+            g('set-density').onchange = e => { SET.density = +e.target.value; saveSet(); g('density-note').style.display = 'block'; };
+            g('set-reset').onclick = () => { SET = Object.assign({}, DEF_SET); sync(); saveSet(); g('density-note').style.display = 'block'; };
+            g('set-close').onclick = closeSettings; g('set-reload').onclick = () => location.reload();
+            g('open-settings').onclick = e => { e.stopPropagation(); openSettings(); };
+        }
+        let HERO='博爾特';
+        const HEROES=[{n:'博爾特',c:0x1e2a78,css:'#1e2a78',m:'bolt',d:'紫色小怪獸'},{n:'胡葆',c:0x1b2a4a,css:'#22d3ee',m:'hubao',d:'E-SPORTS 菁英 · CYBER STRIKER'}];
+        function setHero(i){const h=HEROES[i];HERO=h.n;document.querySelectorAll('.hero-name').forEach(e=>e.textContent=h.n);
+            document.querySelectorAll('#hero-select .hero-card').forEach((e,j)=>{e.style.borderColor=j===i?'#facc15':'#374151';e.style.background=j===i?'rgba(250,204,21,.15)':'rgba(17,24,39,.9)';});
+            if(typeof playerMesh!=='undefined'&&playerMesh&&playerMesh.userData.draw){playerMesh.userData.draw();if(playerMesh.userData.setModel)playerMesh.userData.setModel(h.m);}}
+        const IS_TOUCH = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
+        let pedTick=0,runCd=0,hpFlash=0,arrest=0,lockWasHeld=false,copFoot=[],roadT=0,paused=false,mmMode=0,punch=0,heatCool=0,reinf=0,sfxT=0;
+        const player = {hp:100,heat:0,
+            x: 8, y: 1.8, z: 14,
+            pitch: 0, yaw: 0,
+            speed: 0.22, health: 100, cash: 2500,
+            wantedLevel: 0, inVehicle: false, currentVehicle: null
+        };
+
+        let cameraMode = 'fps';
+        let gameStarted = false;
+        let isMouseDown = false;
+        let lastMouseX = 0, lastMouseY = 0;
+        const keys = {};
+        let playerMesh;
+
+        // Landmarks Config
+        const landmarks = [
+            { id: 'fountain', name: '中央噴水池圓環', x: 0, z: 0, color: '#0284c7' },
+            { id: 'station', name: '嘉義火車站', x: -262, z: -45, bx: -300, bz: -45, clear: 70, color: '#475569' },
+            { id: 'nightmarket', name: '文化路夜市', x: 0, z: 200, clear: 45, color: '#ea580c' },
+            { id: 'hinoki', name: '檜意森活村', x: -170, z: -330, bx: -190, bz: -350, clear: 80, color: '#16a34a' },
+            { id: 'park', name: '嘉義公園・射日塔', x: 330, z: -90, clear: 70, color: '#22c55e' },
+            { id: 'smart_fish', name: '林聰明砂鍋魚頭', x: 50, z: 180, clear: 35, color: '#d97706' },
+            { id: 'department', name: '新光三越嘉義店', x: 180, z: 120, clear: 60, color: '#8b5cf6' },
+            { id: 'gunshop', name: '嘉義槍店', x: -60, z: -100, clear: 35, color: '#ef4444' }
+        ];
+
+        const vehicleTemplates = {
+            taxi: { name: '嘉義小黃跑車', color: 0xfacc15, w: 2.3, h: 1.3, d: 4.7, speed: 0.78, accel: 0.03 },
+            truck: { name: '藍色跑車', color: 0x0284c7, w: 2.3, h: 1.3, d: 4.7, speed: 0.8, accel: 0.03 },
+            sports: { name: '紅色跑車', color: 0xef4444, w: 2.3, h: 1.3, d: 4.7, speed: 0.9, accel: 0.035 },
+            police: { name: '嘉義市警跑車', color: 0x1e293b, w: 2.3, h: 1.3, d: 4.7, speed: 0.75, accel: 0.028, isPolice: true }
+        };
+
+        let vehicles = [];
+        let activeMission = null;
+
+        const ROADS = [
+            {x:0,z:0,w:MAP_SIZE,d:28,n:'中山路'},{x:0,z:200,w:MAP_SIZE,d:22,n:'興業西路'},{x:0,z:-200,w:MAP_SIZE,d:22,n:'民族路'},{x:0,z:-400,w:MAP_SIZE,d:20,n:'林森東路'},
+            {x:0,z:0,w:28,d:MAP_SIZE,v:1,n:'文化路'},{x:-240,z:0,w:22,d:MAP_SIZE,v:1,n:'民生北路'},{x:220,z:0,w:22,d:MAP_SIZE,v:1,n:'垂楊路'},{x:-110,z:0,w:20,d:MAP_SIZE,v:1,n:'中正路'},{x:400,z:0,w:20,d:MAP_SIZE,v:1,n:'公園街'}];
+        let sun, sky, colliders = [], peds = [];
+        const rnd = (a,b) => a + Math.random()*(b-a);
+        const pick = a => a[Math.random()*a.length|0];
+        const M = (c,o={}) => new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.8},o));
+        const onRoad = (x,z,m=0,hw=0,hd=0) => ROADS.some(r => Math.abs(x-r.x) < r.w/2+hw+m && Math.abs(z-r.z) < r.d/2+hd+m);
+        const addBox = (x,z,w,d) => colliders.push({a:x-w/2,b:x+w/2,c:z-d/2,d:z+d/2});
+        function hitsBuilding(x,z,r){return colliders.some(c => c.r ? Math.hypot(x-c.x,z-c.z) < c.r+r : (x>c.a-r && x<c.b+r && z>c.c-r && z<c.d+r));}
+        function tex(w,h,draw,rx=1,ry=1){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);t.anisotropy=8;t.encoding=THREE.sRGBEncoding;return t;}
+        function noise(g,w,h,n,a){for(let i=0;i<n;i++){const v=Math.random()*255|0;g.fillStyle=`rgba(${v},${v},${v},${a})`;g.fillRect(Math.random()*w,Math.random()*h,2,2);}}
+        function flat(w,d,x,z,y,mat,ry=0){const geo=new THREE.PlaneGeometry(w,d);geo.rotateX(-Math.PI/2);const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.y=ry;m.receiveShadow=true;scene.add(m);return m;}
+        const lvl = n => ({polygonOffset:true,polygonOffsetFactor:-n,polygonOffsetUnits:-n});
+
+        function roadTex(r){
+            const L = r.v ? r.d : r.w;
+            const t = tex(512,128,(g,w,h)=>{
+                g.fillStyle='#3b3e43';g.fillRect(0,0,w,h);noise(g,w,h,3000,.1);
+                g.fillStyle='#e8e8e8';g.fillRect(0,4,w,3);g.fillRect(0,h-7,w,3);
+                g.fillStyle='#e0b400';g.fillRect(0,h/2-5,w,3);g.fillRect(0,h/2+2,w,3);
+                g.fillStyle='#ddd';for(let x=0;x<w;x+=64){g.fillRect(x,h/4-1,32,2);g.fillRect(x,3*h/4-1,32,2);}
+            }, r.v?1:L/40, r.v?L/40:1);
+            if (r.v) { t.rotation = Math.PI/2; t.center.set(.5,.5); }
+            return t;
+        }
+
+        function buildRoadGrid() {
+            flat(MAP_SIZE,MAP_SIZE,0,0,0,M(0xffffff,{map:tex(128,128,(g,w,h)=>{g.fillStyle='#a9a59d';g.fillRect(0,0,w,h);noise(g,w,h,1500,.1);g.fillStyle='#8f8b84';g.fillRect(0,0,w,2);g.fillRect(0,0,2,h);g.fillRect(w/2,0,1,h);g.fillRect(0,h/2,w,1);},MAP_SIZE/8,MAP_SIZE/8),roughness:.95}));
+            ROADS.forEach(r => flat(r.w,r.d,r.x,r.z,.03,M(0xffffff,Object.assign({map:roadTex(r),roughness:.9},lvl(1)))));
+            const asphalt = M(0x3b3e43,Object.assign({roughness:.9},lvl(2)));
+            const zebra = M(0xffffff,Object.assign({transparent:true,roughness:.8,map:tex(64,64,(g,w,h)=>{g.fillStyle='#ececec';for(let i=0;i<w;i+=16)g.fillRect(i,0,8,h);},1,1)},lvl(3)));
+            ROADS.filter(r=>r.v).forEach(V => ROADS.filter(r=>!r.v).forEach(H => {
+                const vx=V.x, hz=H.z, vw=V.w, hd=H.d;
+                flat(vw,hd,vx,hz,.05,asphalt);
+                [-1,1].forEach(s => {
+                    const a = flat(vw-3,4,vx,hz+s*(hd/2+3),.07,zebra.clone()); a.material.map = zebra.map.clone(); a.material.map.repeat.set((vw-3)/2,1); a.material.map.needsUpdate = true;
+                    const b = flat(hd-3,4,vx+s*(vw/2+3),hz,.07,zebra.clone(),Math.PI/2); b.material.map = zebra.map.clone(); b.material.map.repeat.set((hd-3)/2,1); b.material.map.needsUpdate = true;
+                });
+            }));
+        }
+
+        const winCache = {};
+        function winTex(fl,co){
+            const k = fl+'_'+co;
+            return winCache[k] || (winCache[k] = tex(co*48,fl*48,(g,w,h)=>{
+                g.fillStyle='#fff';g.fillRect(0,0,w,h);noise(g,w,h,w*h/150,.07);
+                for(let f=0;f<fl;f++)for(let c=0;c<co;c++){const x=c*48,y=f*48;
+                    if(f===fl-1){g.fillStyle='#2a2f36';g.fillRect(x+3,y+12,42,34);g.fillStyle=['#c0392b','#e67e22','#27ae60','#2c6fbb'][(c*7+fl)%4];g.fillRect(x+2,y+6,44,7);}
+                    else{g.fillStyle='#d4d4d4';g.fillRect(x+8,y+10,32,28);g.fillStyle=Math.random()<.2?'#bcd2e0':'#33485c';g.fillRect(x+10,y+12,28,24);g.fillStyle='#aaa';g.fillRect(x+6,y+38,36,3);}
+                }}));
+        }
+
+        function building(x,z,w,d,h,col){
+            const fl = Math.max(2,Math.round(h/3.3)), H = fl*3.3;
+            const mx = M(col,{map:winTex(fl,Math.max(2,Math.round(d/4)))}), mz = M(col,{map:winTex(fl,Math.max(2,Math.round(w/4)))}), roof = M(0x7a7e83);
+            const b = new THREE.Mesh(new THREE.BoxGeometry(w,H,d),[mx,mx,roof,roof,mz,mz]);
+            b.position.set(x,H/2,z);b.castShadow=b.receiveShadow=true;scene.add(b);addBox(x,z,w,d);
+            if (Math.random()<.6) {const t=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,2.2,12),M(0xe8eef2));t.position.set(x+rnd(-w/4,w/4),H+1.1,z+rnd(-d/4,d/4));t.castShadow=true;scene.add(t);}
+            return b;
+        }
+
+        function sign(txt,w,h,x,y,z,ry,bg='#b71c1c'){
+            const t = tex(512,Math.round(512*h/w),(g,W,H)=>{g.fillStyle=bg;g.fillRect(0,0,W,H);g.fillStyle='#fff';g.font=`900 ${H*.5}px "Noto Sans TC",sans-serif`;g.textAlign='center';g.textBaseline='middle';g.fillText(txt,W/2,H/2);});
+            const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:t}));m.position.set(x,y,z);m.rotation.y=ry;scene.add(m);
+        }
+
+        function inst(geo,mat,list,col){
+            const m = new THREE.InstancedMesh(geo,mat,list.length), o = new THREE.Object3D();
+            list.forEach((p,i)=>{o.position.set(p.x,p.y||0,p.z);o.rotation.y=p.r||0;o.scale.set(1,p.sy||1,1).multiplyScalar(p.s||1);o.updateMatrix();m.setMatrixAt(i,o.matrix);if(col)m.setColorAt(i,new THREE.Color().setHSL(rnd(.25,.36),rnd(.4,.55),rnd(.2,.3)));});
+            m.castShadow=true;scene.add(m);
+        }
+
+        function build3DLandmarksAndBuildings() {
+            const L = id => landmarks.find(l=>l.id===id);
+            // Fountain roundabout
+            const fg = new THREE.Group(), stone = M(0xd8d4cc);
+            const basin = new THREE.Mesh(new THREE.CylinderGeometry(4.5,4.8,.9,32),stone);basin.position.y=.45;
+            const wat = new THREE.Mesh(new THREE.CylinderGeometry(4.1,4.1,.1,32),M(0x4aa3d8,{roughness:.1,metalness:.3,transparent:true,opacity:.85}));wat.position.y=.88;
+            const spout = new THREE.Mesh(new THREE.CylinderGeometry(.15,.5,9,10),M(0xcfe9ff,{transparent:true,opacity:.55,emissive:0x2a5a7a}));spout.position.y=5;
+            fg.add(basin,wat,spout);scene.add(fg);colliders.push({x:0,z:0,r:5});
+            // Station
+            const st = L('station');
+            building(st.bx,st.bz,40,60,20,0xe9dcc3);sign('嘉義火車站',24,4,st.bx+20.1,16,st.bz,Math.PI/2,'#1e3a5f');
+            // Department store & fish head restaurant
+            const d = L('department'), f = L('smart_fish');
+            building(d.x,d.z,50,50,38,0xcfc6e8);sign('新光三越',20,4,d.x-25.1,32,d.z,-Math.PI/2,'#5b21b6');
+            building(f.x,f.z,22,22,12,0xf0c27b);sign('林聰明砂鍋魚頭',16,2.6,f.x,9,f.z+11.1,0);
+            // Hinoki Village: wooden houses with tiled roofs
+            const h = L('hinoki');
+            for(let i=-1;i<=1;i++)for(let j=0;j<2;j++){
+                const x=h.bx+i*24,z=h.bz+j*26-8;
+                const w = new THREE.Mesh(new THREE.BoxGeometry(14,5,10),M(0x8b5a2b));w.position.set(x,2.5,z);w.castShadow=true;scene.add(w);
+                const r = new THREE.Mesh(new THREE.ConeGeometry(10,5,4),M(0x3b3b3b));r.rotation.y=Math.PI/4;r.position.set(x,7.5,z);r.castShadow=true;scene.add(r);
+                addBox(x,z,15,11);
+            }
+            sign('檜意森活村',12,2.6,h.bx,7,h.bz+17,0,'#4a2c0f');
+            const pk=L('park');flat(90,90,pk.x,pk.z,.06,M(0x4f8f4a,lvl(2)));
+            const tw=new THREE.Mesh(new THREE.CylinderGeometry(.8,2,42,10),M(0xe5e7eb));tw.position.set(pk.x,21,pk.z);tw.castShadow=true;scene.add(tw);colliders.push({x:pk.x,z:pk.z,r:2.5});
+            sign('射日塔',10,2.4,pk.x,18,pk.z+2.2,0,'#14532d');
+            // Night market stalls
+            for(let z=150;z<=250;z+=10)for(const s of[-1,1]){
+                const x=s*19;
+                const t = new THREE.Mesh(new THREE.BoxGeometry(5,1,3.5),M(0x6b4a2b));t.position.set(x,.5,z);scene.add(t);
+                const a = new THREE.Mesh(new THREE.BoxGeometry(6,.15,4.8),M([0xc0392b,0xf39c12,0xffffff][(z/10)%3|0]));a.position.set(x,3.2,z);a.castShadow=true;scene.add(a);
+                const b = new THREE.Mesh(new THREE.BoxGeometry(5.6,.2,.2),M(0xfff2b0,{emissive:0xffdd66,emissiveIntensity:.8}));b.position.set(x-s*1.5,2.9,z);scene.add(b);
+                addBox(x,z,6,5);
+            }
+        }
+
+        function buildCity() {
+            const PAL=[0xe6e1d6,0xcfc7b6,0xd9d4c5,0xb7c0c6,0xd8c6a8,0xc4cdb8,0xe3d5d0];
+            for(let x=-540;x<=540;x+=40)for(let z=-540;z<=540;z+=40){
+                if(Math.random()<.12)continue;
+                const w=rnd(20,28),d=rnd(20,28),px=x+rnd(-3,3),pz=z+rnd(-3,3);
+                if(onRoad(px,pz,6,w/2,d/2)||landmarks.some(l=>Math.hypot(px-(l.bx??l.x),pz-(l.bz??l.z))<(l.clear??50)))continue;
+                const core=1-Math.min(1,Math.hypot(px,pz)/650);
+                building(px,pz,w,d,rnd(8,14)+core*rnd(0,26),pick(PAL));
+            }
+            // Distant Alishan ridge to the east
+            for(let i=0;i<9;i++){const h=rnd(140,260),m=new THREE.Mesh(new THREE.ConeGeometry(rnd(120,200),h,5),M(0x5f7f9a,{flatShading:true}));const a=rnd(-.9,.9);m.position.set(Math.cos(a)*880,h/2-10,Math.sin(a)*880);scene.add(m);}
+        }
+
+        function buildStreetFurniture() {
+            const trees=[],lamps=[];let n=0;
+            ROADS.forEach(r=>{const Ln=r.v?r.d:r.w,hw=(r.v?r.w:r.d)/2;
+                for(let t=-Ln/2+15;t<Ln/2;t+=26)for(const s of[-1,1]){
+                    const off=s*(hw+2.5),x=r.v?r.x+off:t,z=r.v?t:r.z+off;
+                    if(onRoad(x,z,1)||hitsBuilding(x,z,1.5))continue;
+                    if(n++%2){lamps.push({x,z,r:r.v?(s>0?-Math.PI/2:Math.PI/2):(s>0?Math.PI:0)});}
+                    else{trees.push({x,z,y:1.6,s:rnd(.9,1.2)});colliders.push({x,z,r:.5});}
+                }});
+            inst(new THREE.CylinderGeometry(.25,.35,3.2,8),M(0x5a3e28),trees);
+            inst(new THREE.IcosahedronGeometry(2.6,1),M(0xffffff,{flatShading:true}),trees.map(t=>({x:t.x,z:t.z,y:5.2,s:t.s,sy:.85})),true);
+            const hd=new THREE.BoxGeometry(.5,.2,1.6);hd.translate(0,8.6,.9);
+            inst(new THREE.CylinderGeometry(.1,.14,8.6,8).translate(0,4.3,0),M(0x4b5563),lamps);
+            inst(hd,M(0xfff4c8,{emissive:0xfff0b0,emissiveIntensity:.5}),lamps);
+        }
+
+        function create3DCarMesh(t,key) {
+            t=Object.assign({},t,{w:2.3,h:1.3,d:4.7});
+            const g=new THREE.Group(),paint=M(t.color,{roughness:.25,metalness:.6}),glass=M(0x1b2733,{roughness:.05,metalness:.9}),black=M(0x111111);
+            const add=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;g.add(m);return m;};
+            const B=g=>new THREE.BoxGeometry(...g), bh=t.h*.45, ch=t.h*.5, tr=false;
+            const cd=t.d*.38, cz=-t.d*.1;
+            add(B([t.w,bh,t.d]),paint,0,.38+bh/2,0);
+            add(B([t.w*.9,ch,cd]),glass,0,.38+bh+ch/2-.02,cz);
+            add(B([t.w*.92,.06,cd*.9]),paint,0,.38+bh+ch,cz);
+            if(tr)add(B([t.w,t.h*.9,t.d*.5]),M(0xdddddd),0,.38+t.h*.45+.2,-t.d*.22);
+            [-1,1].forEach(s=>{
+                add(B([.35,.18,.06]),M(0xfff8dc,{emissive:0xffffaa,emissiveIntensity:.6}),s*t.w*.33,.38+bh*.7,t.d/2);
+                add(B([.35,.16,.06]),M(0xaa0000,{emissive:0xff0000,emissiveIntensity:.5}),s*t.w*.33,.38+bh*.7,-t.d/2);
+            });
+            add(B([t.w*1.02,.2,t.d*1.02]),black,0,.42,0);
+            add(B([t.w*.9,.07,.55]),paint,0,.38+bh+.4,-t.d/2+.35);[-1,1].forEach(q=>add(B([.08,.4,.08]),black,q*t.w*.3,.38+bh+.2,-t.d/2+.4));
+            add(B([.35,.02,t.d*.95]),M(0xffffff),0,.39+bh+.01,0);
+            const wheels=[],wg=new THREE.CylinderGeometry(.38,.38,.28,16);wg.rotateZ(Math.PI/2);
+            [[-1,1],[1,1],[-1,-1],[1,-1]].forEach(([sx,sz])=>wheels.push(add(wg,black,sx*(t.w/2-.1),.38,sz*t.d*.32)));
+            if(key==='taxi')add(B([.9,.25,.3]),M(0xffffff,{emissive:0xffee88,emissiveIntensity:.8}),0,.38+bh+ch+.15,-.1);
+            const sirens=[];
+            if(t.isPolice){
+                add(B([t.w*1.01,bh*.5,t.d*.5]),M(0xf5f5f5),0,.38+bh*.5,0);
+                [[0xff0000,-.4],[0x0044ff,.4]].forEach(([c,x])=>sirens.push(add(B([.7,.22,.4]),M(c,{emissive:c,emissiveIntensity:1}),x,.38+bh+ch+.15,cz)));
+            }
+            add(B([t.w*1.08,.08,.55]),black,0,.38+bh+.55,-t.d/2+.1);
+            [-1,1].forEach(s=>add(B([.08,.45,.12]),black,s*t.w*.35,.38+bh+.3,-t.d/2+.1));
+            add(B([t.w*1.02,.06,.5]),black,0,.3,t.d/2);
+            if(!t.isPolice)add(B([.3,.02,t.d*.5]),M(0xffffff),0,.38+bh+.01,t.d*.2);
+            g.userData={wheels,sirens};return g;
+        }
+
+        function spawn3DVehicles() {
+            const ks=['taxi','taxi','truck','sports','police','taxi','truck','sports','taxi','police'];
+            for(let i=0,N=Math.round(48*SET.density);i<N;i++){
+                const key=ks[i%ks.length],t=vehicleTemplates[key],r=ROADS[i%ROADS.length],q=(r.v?r.w:r.d)/4,dir=Math.random()<.5?1:-1,p=rnd(-480,480);
+                const g=create3DCarMesh(t,key);
+                if(r.v){g.position.set(r.x-dir*q,0,p);g.rotation.y=dir>0?0:Math.PI;}
+                else{g.position.set(p,0,r.z+dir*q);g.rotation.y=dir>0?Math.PI/2:-Math.PI/2;}
+                scene.add(g);
+                vehicles.push({mesh:g,typeKey:key,name:t.name,speed:0,cruise:rnd(.16,.28)*(key==='sports'?1.3:1),maxSpeed:t.speed,accel:t.accel,health:100,isPolice:!!t.isPolice,wheels:g.userData.wheels});
+            }
+        }
+
+        function driveAI(v) {
+            if(v.isPolice&&player.wanted>0&&chase(v))return;
+            const m=v.mesh,r=m.rotation.y,fx=Math.sin(r),fz=Math.cos(r);
+            const ahead=(x,z)=>{const dx=x-m.position.x,dz=z-m.position.z,f=dx*fx+dz*fz;return f>0&&f<10&&Math.abs(dx*fz-dz*fx)<2.6;};
+            const blocked=ahead(player.x,player.z)||vehicles.some(o=>o!==v&&ahead(o.mesh.position.x,o.mesh.position.z));
+            v.speed+=((blocked?0:(v.cruise||0))-v.speed)*.06;
+            m.position.x+=fx*v.speed;m.position.z+=fz*v.speed;
+            const E=MAP_SIZE/2-40;
+            if(m.position.x>E)m.position.x=-E;else if(m.position.x<-E)m.position.x=E;
+            if(m.position.z>E)m.position.z=-E;else if(m.position.z<-E)m.position.z=E;
+        }
+
+        function spawnPeds() {
+            const skin=[0xf1c9a5,0xd9a07a,0xb57b57],cl=[0xe74c3c,0x3498db,0xf1c40f,0xffffff,0x2ecc71,0x34495e,0xe67e22];
+            for(let i=0,N=Math.round(110*SET.density);i<N;i++){
+                const r=ROADS[i%ROADS.length],hw=(r.v?r.w:r.d)/2,g=new THREE.Group();
+                const body=new THREE.Mesh(new THREE.CylinderGeometry(.26,.3,.9,8),M(cl[i%cl.length]));body.position.y=1.15;body.castShadow=true;
+                const head=new THREE.Mesh(new THREE.SphereGeometry(.2,10,8),M(skin[i%3]));head.position.y=1.8;
+                const legs=[-1,1].map(s=>{const l=new THREE.Mesh(new THREE.BoxGeometry(.2,.8,.22).translate(0,-.4,0),M(0x2c3e50));l.position.set(s*.13,.8,0);g.add(l);return l;});
+                g.add(body,head);scene.add(g);
+                peds.push({g,legs,r,off:(i%2?1:-1)*(hw+1.6),t:rnd(-400,400),dir:i%3?1:-1,sp:rnd(.03,.06)});
+            }
+        }
+
+        function updateWorld() {
+            if(!sun)return;
+            const c=camera.position,t=performance.now();
+            sun.position.set(c.x+160,260,c.z+90);sun.target.position.set(c.x,0,c.z);sun.target.updateMatrixWorld();sky.position.copy(c);
+            peds.forEach(p=>{if(p.dead>0){p.dead--;p.g.rotation.x=-1.5;if(p.dead>0)return;p.g.rotation.x=0;p.t=rnd(-400,400);}if(p.hit>0){p.hit--;if(p.hit>0){p.g.rotation.x=-1.5;return;}p.g.rotation.x=0;}p.t+=p.dir*p.sp;if(Math.abs(p.t)>450)p.dir*=-1;const v=p.r.v;
+                p.g.position.set(v?p.r.x+p.off:p.t,0,v?p.t:p.r.z+p.off);p.g.rotation.y=v?(p.dir>0?0:Math.PI):(p.dir>0?Math.PI/2:-Math.PI/2);
+                const s=Math.sin(t*.0012*p.sp*100)*.5;p.legs[0].rotation.x=s;p.legs[1].rotation.x=-s;});
+            vehicles.forEach(v=>{v.wheels.forEach(w=>w.rotation.x+=v.speed/.38);(v.mesh.userData.sirens||[]).forEach((s,i)=>s.material.emissiveIntensity=(((t/180)|0)+i)%2?1.6:.1);});
+        }
+
+        function reportErr(e,where){console.error(where,e);let d=document.getElementById('err-banner');if(!d){d=document.createElement('div');d.id='err-banner';d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99;background:#7f1d1d;color:#fff;font:12px monospace;padding:6px 10px;white-space:pre-wrap;pointer-events:none';document.body.appendChild(d);}d.textContent+='['+where+'] '+(e&&e.message||e)+'\n';}
+        function init3DWorld() {
+            setupInputListeners();setupShop();
+            const container=document.getElementById('three-canvas-container');
+            scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0xc9dae8,0.0013);
+            camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.3,1500);
+            camera.position.set(player.x,player.y,player.z);scene.add(camera);
+            renderer=new THREE.WebGLRenderer({antialias:true});
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+            renderer.setSize(window.innerWidth,window.innerHeight);
+            renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+            renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;
+            container.appendChild(renderer.domElement);
+
+            sky=new THREE.Mesh(new THREE.SphereGeometry(1400,24,12),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
+                vertexShader:'varying vec3 p;void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+                fragmentShader:'varying vec3 p;void main(){float h=normalize(p).y;vec3 top=vec3(.22,.48,.85),hor=vec3(.79,.87,.94);gl_FragColor=vec4(mix(hor,top,pow(max(h,0.),.5)),1.);}'}));
+            scene.add(sky);
+            scene.add(new THREE.HemisphereLight(0xcfe3ff,0x8a7f6a,.8));
+            sun=new THREE.DirectionalLight(0xfff0d8,1.3);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+            const sc=sun.shadow.camera;sc.left=sc.bottom=-110;sc.right=sc.top=110;sc.near=10;sc.far=700;sun.shadow.bias=-.0005;
+            scene.add(sun,sun.target);
+
+            playerMesh=new THREE.Group();const boltG=new THREE.Group();playerMesh.add(boltG);
+            const navy=0x1e2a78,yel=0xfacc15,pur=0x7e22ce,cy=0x22d3ee,gry=0x8ea4d2,drk=0x1b1f3b;
+            const pb=new THREE.Mesh(new THREE.SphereGeometry(.6,18,14),M(navy,{roughness:.45}));pb.scale.set(1.05,.85,.9);pb.position.y=1.15;
+            const cap=new THREE.Mesh(new THREE.SphereGeometry(.62,18,10,0,Math.PI*2,0,1.05),M(yel,{roughness:.4}));cap.scale.set(1.05,.85,.9);cap.position.y=1.15;cap.rotation.x=.35;
+            const disc=new THREE.Mesh(new THREE.CylinderGeometry(.27,.27,.07,24),M(pur,{roughness:.35}));disc.rotation.x=Math.PI/2;disc.position.set(0,1.1,.5);
+            const xg=new THREE.Group();[Math.PI/4,-Math.PI/4].forEach(r=>{const b=new THREE.Mesh(new THREE.BoxGeometry(.4,.1,.04),M(cy,{emissive:cy,emissiveIntensity:.5}));b.rotation.z=r;xg.add(b);});xg.position.set(0,1.1,.55);
+            const legs=[-1,1].map(q=>{const l=new THREE.Group();l.position.set(q*.28,0,.05);
+                const lg=new THREE.Mesh(new THREE.CylinderGeometry(.13,.15,.5,10),M(gry));lg.position.y=.55;
+                const bt=new THREE.Mesh(new THREE.SphereGeometry(.25,12,10),M(yel,{roughness:.35}));bt.scale.set(1,.65,1.35);bt.position.set(0,.14,.08);
+                l.add(lg,bt);boltG.add(l);return l;});
+            const headG=new THREE.Group();headG.position.y=1.85;
+            const ph=new THREE.Mesh(new THREE.SphereGeometry(.28,14,12),M(gry));ph.scale.set(1.1,.85,.95);
+            const eyes=[-1,1].map(q=>{const e=new THREE.Mesh(new THREE.BoxGeometry(.17,.1,.05),M(cy,{emissive:cy,emissiveIntensity:.7}));e.position.set(q*.14,.03,.25);e.rotation.z=-q*.3;return e;});
+            const teeth=new THREE.Mesh(new THREE.BoxGeometry(.26,.06,.04),M(0xffffff));teeth.position.set(0,-.1,.26);
+            const brim=new THREE.Mesh(new THREE.ConeGeometry(.3,.12,3),M(yel,{roughness:.4}));brim.rotation.x=Math.PI;brim.position.set(0,.2,.1);brim.scale.set(1.2,1,.8);brim.rotation.y=Math.PI;
+            const tree=new THREE.Mesh(new THREE.ConeGeometry(.1,.22,5),M(0x14b88a));tree.position.set(0,.4,0);
+            headG.add(ph,teeth,brim,tree,...eyes);
+            [[-.5,.3,-.08,.5,.35],[.5,.3,-.08,-.5,-.35],[0,.45,-.22,0,0]].forEach(d=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.05,24),M(pur,{roughness:.35}));w.scale.set(.85,1,.6);w.position.set(d[0],d[1],d[2]);w.rotation.set(Math.PI/2.4,0,d[3]);headG.add(w);});
+            
+            const mkArm=q=>{const a=new THREE.Group();a.position.set(q*.78,1.5,0);
+                const u=new THREE.Mesh(new THREE.CylinderGeometry(.14,.16,.5,10),M(gry));u.position.y=-.25;
+                const rg=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,.1,16),M(pur,{roughness:.35}));rg.rotation.z=Math.PI/2;rg.position.y=-.5;
+                const f=new THREE.Mesh(new THREE.BoxGeometry(.3,.26,.3),M(drk));f.position.y=-.68;
+                const k=new THREE.Mesh(new THREE.BoxGeometry(.28,.07,.1),M(0x93b4f0));k.position.set(0,-.55,.13);
+                a.add(u,rg,f,k);return a;};
+            const arm=mkArm(1),arm2=mkArm(-1);
+            const tc=document.createElement('canvas');tc.width=256;tc.height=64;const tg=tc.getContext('2d');tg.fillStyle='rgba(0,0,0,.6)';tg.fillRect(0,0,256,64);tg.fillStyle='#facc15';tg.font='bold 40px "Noto Sans TC",sans-serif';tg.textAlign='center';tg.textBaseline='middle';tg.fillText(HERO,128,34);
+            const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(tc),depthTest:false}));tag.scale.set(2.4,.6,1);
+            playerMesh.userData.draw=()=>{tg.clearRect(0,0,256,64);tg.fillStyle='rgba(0,0,0,.6)';tg.fillRect(0,0,256,64);tg.fillStyle='#facc15';tg.fillText(HERO,128,34);tag.material.map.needsUpdate=true;};playerMesh.userData.body=pb;tag.position.y=2.9;
+            boltG.add(pb,cap,disc,xg,headG,arm,arm2);playerMesh.add(tag);
+            const boltRef={head:headG,arms:[arm,arm2]};
+            // ===== 胡葆 (E-SPORTS CYBER STRIKER) =====
+            const hoG=new THREE.Group(),E=(c,i=.9)=>M(c,{emissive:c,emissiveIntensity:i,roughness:.3}),
+                navy2=M(0x1c2540,{roughness:.5,metalness:.3}),silv=M(0xc9d2e3,{roughness:.35,metalness:.5}),dk=M(0x12151f,{roughness:.6,metalness:.2}),skinM=M(0xf0c4a0,{roughness:.7}),hair=M(0x5b3d2a,{roughness:.8});
+            const add=(p,geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;p.add(m);return m;};
+            [-1,1].forEach(q=>{const l=new THREE.Group();l.position.set(q*.19,.95,0);
+                add(l,new THREE.CylinderGeometry(.14,.12,.46,10),silv,0,-.22,0);
+                add(l,new THREE.SphereGeometry(.14,10,8),navy2,0,-.47,.05).scale.set(1,.9,1.1);
+                add(l,new THREE.CylinderGeometry(.11,.1,.4,10),navy2,0,-.68,0);
+                add(l,new THREE.BoxGeometry(.04,.34,.03),E(q>0?0xa855f7:0x22d3ee),q*.1,-.3,.1);
+                add(l,new THREE.BoxGeometry(.24,.16,.38),dk,0,-.9,.06);
+                add(l,new THREE.BoxGeometry(.25,.04,.39),E(0xf97316,.7),0,-.85,.06);
+                hoG.add(l);});
+            add(hoG,new THREE.BoxGeometry(.56,.3,.34),navy2,0,1.0,0);
+            add(hoG,new THREE.BoxGeometry(.6,.1,.38),dk,0,1.13,0);
+            add(hoG,new THREE.BoxGeometry(.64,.62,.38),navy2,0,1.45,0);
+            add(hoG,new THREE.BoxGeometry(.46,.34,.06),silv,0,1.5,.2);
+            add(hoG,new THREE.BoxGeometry(.2,.05,.04),E(0x3b82f6),0,1.55,.24);
+            [-1,1].forEach(q=>{add(hoG,new THREE.BoxGeometry(.03,.26,.03),E(0xa855f7,1.1),q*.15,1.3,.2);
+                const t=new THREE.Mesh(new THREE.TorusGeometry(.32,.025,6,18,Math.PI),M(0xe8825a));t.position.set(q*.16,1.05,.12);t.rotation.z=Math.PI;t.rotation.y=q*.3;hoG.add(t);
+                add(hoG,new THREE.SphereGeometry(.17,12,10),silv,q*.4,1.7,0).scale.set(1,.8,1.1);});
+            // backpack (back = -z)
+            add(hoG,new THREE.BoxGeometry(.56,.62,.2),dk,0,1.45,-.29);
+            [-1,1].forEach(q=>{add(hoG,new THREE.BoxGeometry(.18,.34,.03),E(0x38bdf8,1),q*.15,1.55,-.4);
+                add(hoG,new THREE.BoxGeometry(.04,.22,.03),E(0x4ade80,1),q*.04,1.35,-.4);
+                add(hoG,new THREE.BoxGeometry(.14,.1,.03),E(0xf97316,.8),q*.17,1.2,-.4);});
+            const hh=new THREE.Group();hh.position.y=1.8;
+            add(hh,new THREE.CylinderGeometry(.08,.09,.1,8),skinM,0,-.04,0);
+            add(hh,new THREE.SphereGeometry(.22,18,14),skinM,0,.2,0).scale.set(.95,1.08,1);
+            add(hh,new THREE.SphereGeometry(.235,18,10,0,Math.PI*2,0,1.45),hair,0,.23,-.02);
+            add(hh,new THREE.BoxGeometry(.3,.1,.05),hair,0,.33,.19);
+            [-1,1].forEach(q=>{add(hh,new THREE.SphereGeometry(.025,8,6),dk,q*.08,.2,.2);});
+            add(hh,new THREE.BoxGeometry(.07,.02,.02),M(0xb5695a),0,.08,.21);
+            const band=new THREE.Mesh(new THREE.TorusGeometry(.25,.022,6,20,Math.PI),M(0x20242f));band.position.y=.22;band.rotation.z=0;hh.add(band);
+            [[-1,0x22d3ee],[1,0xa855f7]].forEach(d=>{const c=add(hh,new THREE.CylinderGeometry(.1,.1,.08,16),E(d[1],.9),d[0]*.25,.2,0);c.rotation.z=Math.PI/2;});
+            hoG.add(hh);
+            const mkA=q=>{const a=new THREE.Group();a.position.set(q*.46,1.64,0);
+                add(a,new THREE.CylinderGeometry(.11,.1,.34,10),navy2,0,-.17,0);
+                add(a,new THREE.CylinderGeometry(.115,.1,.3,10),silv,0,-.45,0);
+                add(a,new THREE.BoxGeometry(.1,.1,.1),E(0x4ade80,.9),0,-.45,.1);
+                add(a,new THREE.SphereGeometry(.1,10,8),M(0x8b93a7),0,-.68,0);return a;};
+            const ha=mkA(1),ha2=mkA(-1);hoG.add(ha,ha2);
+            const ring=new THREE.Mesh(new THREE.RingGeometry(.55,.68,32),new THREE.MeshBasicMaterial({color:0x22d3ee,side:THREE.DoubleSide,transparent:true,opacity:.75}));ring.rotation.x=-Math.PI/2;ring.position.y=.03;hoG.add(ring);
+            hoG.scale.setScalar(1.05);playerMesh.add(hoG);
+            const refs={bolt:[boltG,boltRef],hubao:[hoG,{head:hh,arms:[ha,ha2]}]};
+            playerMesh.userData.setModel=k=>{for(const n in refs)refs[n][0].visible=n===k;playerMesh.userData.head=refs[k][1].head;playerMesh.userData.arms=refs[k][1].arms;};
+            setTimeout(()=>{const i=HEROES.findIndex(h=>h.n===HERO);setHero(i<0?1:i);},0);
+            playerMesh.position.set(player.x,0,player.z);scene.add(playerMesh);
+
+            [buildRoadGrid,build3DLandmarksAndBuildings,buildGunShop,buildCity,buildStreetFurniture,spawn3DVehicles,spawnPeds].forEach(fn=>{try{fn();}catch(e){reportErr(e,fn.name);}});
+
+            minimapCanvas=document.getElementById('minimapCanvas');
+            minimapCtx=minimapCanvas.getContext('2d');
+            window.addEventListener('resize',onWindowResize);
+        }
+
+        function setupInputListeners() {
+            { const hs = document.getElementById('hero-select');
+              HEROES.forEach((h, i) => { const d = document.createElement('div'); d.className = 'hero-card rounded-xl p-2 cursor-pointer text-center'; d.style.cssText = 'border:2px solid #374151;background:rgba(17,24,39,.9)';
+                d.innerHTML = `<div class="text-sm font-black" style="color:${h.css}">${h.n}</div><div class="text-[10px] text-gray-400">${h.d}</div>`;
+                d.onclick = e => { e.stopPropagation(); setHero(i); }; hs.appendChild(d); }); }
+            setHero(1);
+            setupAccount(); setupSettings();
+            const startBtn = document.getElementById('start-btn');
+            const overlay = document.getElementById('instructions-overlay');
+            const camBtn = document.getElementById('cam-toggle-btn');
+
+            const startGame = (e) => {
+                if (e) { e.preventDefault(); e.stopPropagation(); }
+                gameStarted = true; setCloud(cloudState, cloudMsg);
+                overlay.style.display = 'none';
+                lockMouse();
+                showToast('🎮 '+HERO+'出發！WASD 移動，左鍵揍人，M 放大地圖，Esc 暫停');
+                sfx.playCash();
+            };
+
+            startBtn.addEventListener('click', startGame);
+            overlay.addEventListener('click', startGame);
+            camBtn.addEventListener('click', toggleCameraMode);
+            document.getElementById('pause-btn').addEventListener('click', togglePause);
+            document.getElementById('minimapCanvas').addEventListener('click', toggleMinimap);
+
+            window.addEventListener('mousedown', (e) => {
+                isMouseDown = true;
+                if (gameStarted && !paused && e.button === 0 && !IS_TOUCH && document.getElementById('modal-overlay').classList.contains('hidden') && !e.target.closest('#modal-overlay,#pause-overlay,#settings-panel')) {
+                    if (!document.pointerLockElement) lockMouse();
+                    doAttack(); const ch = document.getElementById('crosshair'); ch.style.transform = 'translate(-50%,-50%) scale(2.5)'; setTimeout(() => ch.style.transform = 'translate(-50%,-50%)', 150);
+                }
+                lastMouseX = e.clientX; lastMouseY = e.clientY;
+            });
+            window.addEventListener('mouseup', () => { isMouseDown = false; });
+            window.addEventListener('mousemove', (e) => {
+                const locked = !!document.pointerLockElement;
+                if (!gameStarted || paused || (!locked && !isMouseDown)) return;
+                const dx = locked ? e.movementX : e.clientX - lastMouseX, dy = locked ? e.movementY : e.clientY - lastMouseY;
+                lastMouseX = e.clientX; lastMouseY = e.clientY;
+
+                const sens = 0.0045 * SET.sens;
+                player.yaw -= dx * sens;
+                player.pitch -= dy * sens * (SET.invertY ? -1 : 1);
+                player.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, player.pitch));
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (shopOpen) { if (e.key === 'Escape' || e.key.toLowerCase() === 'e') closeShop(); else if (/^[1-4]$/.test(e.key)) { const w = WEAPONS.filter(x => x.price > 0)[+e.key - 1]; if (w) shopAct(owned[w.id] ? 'ammo' : 'buy', w.id); } return; }
+                keys[e.key.toLowerCase()] = true;
+                if (/^[1-5]$/.test(e.key)) equipSlot(+e.key - 1);
+                if (e.key.toLowerCase() === 'x') cycleWeapon();
+                if (e.key.toLowerCase() === 'f' || e.key === 'Enter') toggleVehicleEnter();
+                if (e.key.toLowerCase() === 'e') triggerInteraction();
+                if (e.key.toLowerCase() === 'c') toggleCameraMode();
+                if (e.key === 'Escape') { if (!document.getElementById('settings-panel').classList.contains('hidden')) closeSettings(); else if (paused || !lockWasHeld) togglePause(); }
+                if (e.key.toLowerCase() === 'm') toggleMinimap();
+                if (e.key.toLowerCase() === 'q') doAttack();
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                const modalOpen = !document.getElementById('modal-overlay').classList.contains('hidden');
+                if (document.pointerLockElement) { lockWasHeld = true; return; }
+                if (lockWasHeld) { lockWasHeld = false; if (gameStarted && !paused && !modalOpen) togglePause(); }
+            });
+            window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+            if (IS_TOUCH) setupTouch();
+        }
+
+        function fireKey(k, down) { window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { key: k })); }
+        function setupTouch() {
+            const card = document.querySelector('.hud-card'); card.classList.add('tm-card'); card.appendChild(document.getElementById('vehicle-hud'));
+            { const mc = document.getElementById('minimapCanvas'); mc.width = mc.height = 120; }
+            document.body.classList.add('touch');
+            const ui = document.createElement('div'); ui.id = 'touch-ui';
+            const mk = b => `<div class="tb tctl" data-k="${b[0]}" data-m="${b[3]}">${b[1]}<small>${b[2]}</small></div>`;
+            ui.innerHTML = '<div id="joy" class="tctl"><div id="joy-knob"></div></div><div id="tbtns"><div id="tctx" class="tg">' +
+              [['f','🚗','上下車','tap'],[' ','🏁','漂移','hold'],['e','📣','互動','tap'],['full','⛶','全螢幕','tap']].map(mk).join('') +
+              '</div><div id="tfix" class="tg">' + [['q','👊','打人','tap'],['shift','💨','衝刺','hold'],['pause','⏸','暫停','tap'],['c','🎥','視角','tap'],['m','🗺️','地圖','tap'],['x','🔫','換武器','tap']].map(mk).join('') + '</div></div>';
+            ui.style.display = 'none';
+            document.body.appendChild(ui);
+            const joy = document.getElementById('joy'), knob = document.getElementById('joy-knob');
+            let jid = null; const st = { w: 0, a: 0, s: 0, d: 0, shift: 0 };
+            const setK = (k, v) => { if (st[k] !== v) { st[k] = v; fireKey(k, !!v); } };
+            const jmove = t => { const r = joy.getBoundingClientRect(), R = r.width / 2; let dx = t.clientX - (r.left + R), dy = t.clientY - (r.top + R); const m = Math.hypot(dx, dy) || 1, c = Math.min(m, R); dx = dx / m * c; dy = dy / m * c;
+                knob.style.transform = `translate(${dx}px,${dy}px)`; const nx = dx / R, ny = dy / R;
+                setK('w', ny < -.3 ? 1 : 0); setK('s', ny > .3 ? 1 : 0); setK('a', nx < -.3 ? 1 : 0); setK('d', nx > .3 ? 1 : 0); setK('shift', m > R * 1.05 ? 1 : 0); };
+            const jend = () => { jid = null; knob.style.transform = ''; ['w','a','s','d','shift'].forEach(k => setK(k, 0)); };
+            joy.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; jid = t.identifier; jmove(t); }, { passive: false });
+            joy.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === jid) jmove(t); }, { passive: false });
+            joy.addEventListener('touchend', jend); joy.addEventListener('touchcancel', jend);
+            ui.querySelectorAll('.tb').forEach(b => {
+                const k = b.dataset.k, hold = b.dataset.m === 'hold';
+                b.addEventListener('touchstart', e => { e.preventDefault(); b.classList.add('on');
+                    if (k === 'pause') togglePause(); else if (k === 'full') { const d = document.documentElement; (d.requestFullscreen || d.webkitRequestFullscreen || (() => {})).call(d); } else fireKey(k, true); }, { passive: false });
+                const up = e => { e.preventDefault(); b.classList.remove('on'); if (k !== 'pause' && k !== 'full') fireKey(k, false); };
+                b.addEventListener('touchend', up, { passive: false }); b.addEventListener('touchcancel', up, { passive: false });
+            });
+            // buttons only appear when useful
+            const vis = (k, on) => { const b = ui.querySelector(`[data-k="${k}"]`); const d = on ? '' : 'none'; if (b.style.display !== d) { b.style.display = d; if (!on && b.classList.contains('on')) { b.classList.remove('on'); if (k !== 'pause' && k !== 'full') fireKey(k, false); } } };
+            const canFull = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+            setInterval(() => {
+                if (!gameStarted) { ui.style.display = 'none'; return; } ui.style.display = '';
+                const inV = player.inVehicle;
+                const nearV = !inV && vehicles.some(v => Math.hypot(player.x - v.mesh.position.x, player.z - v.mesh.position.z) < 10);
+                const nearM = !inV && ((!activeMission && (Math.hypot(player.x + 262, player.z + 45) < 55 || Math.hypot(player.x, player.z) < 40)) || nearShop());
+                vis('f', inV || nearV); vis(' ', inV); vis('e', nearM);
+                vis('full', canFull && !(document.fullscreenElement || document.webkitFullscreenElement));
+            }, 150);
+            // look: drag anywhere else
+            let lid = null, lx = 0, ly = 0;
+            const skip = t => t.closest && t.closest('.tctl,#minimapCanvas,#modal-overlay,#pause-overlay,#settings-panel,#auth-modal,#shop-overlay,#instructions-overlay,button,a');
+            document.addEventListener('touchstart', e => { if (!gameStarted || paused || lid !== null) return; for (const t of e.changedTouches) { if (skip(t.target)) continue; lid = t.identifier; lx = t.clientX; ly = t.clientY; e.preventDefault(); } }, { passive: false });
+            document.addEventListener('touchmove', e => { for (const t of e.changedTouches) if (t.identifier === lid) { e.preventDefault(); if (paused) return; const dx = t.clientX - lx, dy = t.clientY - ly; lx = t.clientX; ly = t.clientY;
+                player.yaw -= dx * 0.006 * SET.sens; player.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, player.pitch - dy * 0.006 * SET.sens * (SET.invertY ? -1 : 1))); } }, { passive: false });
+            const lend = e => { for (const t of e.changedTouches) if (t.identifier === lid) lid = null; };
+            document.addEventListener('touchend', lend); document.addEventListener('touchcancel', lend);
+            const help = '<div style="font-size:12px;line-height:1.7;text-align:left;background:#111827;border:1px solid #374151;border-radius:14px;padding:10px 12px;margin-bottom:12px;color:#e5e7eb">📱 <b style="color:#facc15">觸控操作</b><br>🕹️ 左側搖桿：移動（推到最外圈＝衝刺）<br>👆 螢幕空白處滑動：轉視角<br>👊 打人　🚗 上下車/搶車　🏁 按住漂移<br>🎥 切換視角　🗺️ 放大地圖　⏸ 暫停　⛶ 全螢幕<br><span style="color:#9ca3af">※ 按鈕只會在用得到時才出現</span></div>';
+            ['instructions-overlay', 'pause-overlay'].forEach(id => { const o = document.getElementById(id); if (!o) return; const sm = o.querySelector('details summary'); if (sm) sm.insertAdjacentHTML('afterend', help); else if (o.firstElementChild) o.firstElementChild.insertAdjacentHTML('afterbegin', help); });
+        }
+
+
+        function toggleCameraMode() {
+            cameraMode = cameraMode === 'fps' ? 'third' : 'fps';
+            showToast(cameraMode === 'fps' ? '🎥 第一人稱視角' : '🎥 第三人稱追蹤視角');
+        }
+
+        function toggleVehicleEnter() {
+            if (player.inVehicle) {
+                const v = player.currentVehicle; v.cruise = 0;
+                player.inVehicle = false;
+                player.x = v.mesh.position.x + 3.5;
+                player.z = v.mesh.position.z;
+                player.y = 1.8;
+                player.currentVehicle = null;
+                document.getElementById('vehicle-hud').classList.add('hidden');
+                showToast('已安全離開車輛');
+            } else {
+                let nearest = null; let minDist = 10;
+                vehicles.forEach(v => {
+                    const dist = Math.hypot(player.x - v.mesh.position.x, player.z - v.mesh.position.z);
+                    if (dist < minDist) { minDist = dist; nearest = v; }
+                });
+                if (nearest) {
+                    player.inVehicle = true;
+                    player.currentVehicle = nearest; nearest.vx = undefined;
+                    document.getElementById('vehicle-hud').classList.remove('hidden');
+                    document.getElementById('vehicle-name').innerText = nearest.name; document.getElementById('vehicle-health-bar').style.width = nearest.health + '%';
+                    showToast(`已進入車輛：${nearest.name}`); if(nearPolice(150)) addHeat(1.2);
+                    sfx.playHonk();
+                }
+            }
+        }
+
+        function triggerInteraction() {
+            if (player.inVehicle) { sfx.playHonk(); return; }
+            if (nearShop()) { openShop(); return; }
+            if (!activeMission) {
+                if (Math.hypot(player.x - (-262), player.z - (-45)) < 55) {
+                    startMission('turkey_delivery'); return;
+                }
+                if (Math.hypot(player.x - 0, player.z - 0) < 40) {
+                    startMission('nightmarket_drift'); return;
+                }
+                showToast('📍 請靠近【嘉義火車站】或【中央噴水池】按 E 鍵接取任務！');
+            }
+        }
+
+        function startMission(type) {
+            if (type === 'turkey_delivery') {
+                const target = landmarks.find(l => l.id === 'smart_fish');
+                activeMission = { title: '🍗 火雞肉飯外送', desc: '限時送達至【林聰明砂鍋魚頭】！', targetX: target.x, targetZ: target.z, timeLeft: 55, reward: 1200 };
+            } else {
+                const target = landmarks.find(l => l.id === 'hinoki');
+                activeMission = { title: '🏎️ 嘉義極速狂飆', desc: '飆車前往【檜意森活村】！', targetX: target.x, targetZ: target.z, timeLeft: 45, reward: 1800 };
+            }
+
+            document.getElementById('mission-card').classList.remove('hidden');
+            document.getElementById('mission-title').innerText = activeMission.title;
+            document.getElementById('mission-desc').innerText = activeMission.desc;
+            document.getElementById('mission-reward').innerText = `+$${activeMission.reward}`;
+            sfx.playCash();
+            showToast(`任務開始：${activeMission.title}`);
+
+            if (window.missionTimer) clearInterval(window.missionTimer);
+            window.missionTimer = setInterval(() => {
+                if (!activeMission||paused||!gameStarted) return;
+                activeMission.timeLeft--;
+                document.getElementById('mission-timer').innerText = `${activeMission.timeLeft}s`;
+                if (activeMission.timeLeft <= 0) {
+                    clearInterval(window.missionTimer);
+                    activeMission = null;
+                    document.getElementById('mission-card').classList.add('hidden');
+                    showModal('❌ 任務失敗', '時間已耗盡！');
+                }
+            }, 1000);
+        }
+
+        function lockMouse(){if(IS_TOUCH)return;try{const p=document.body.requestPointerLock();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
+        function togglePause(){if(!gameStarted)return;paused=!paused;document.getElementById('pause-overlay').classList.toggle('hidden',!paused);if(paused){if(document.pointerLockElement)document.exitPointerLock();lockWasHeld=false;}else lockMouse();}
+        function toggleMinimap(){mmMode=(mmMode+1)%3;const S=mmMode===0?(IS_TOUCH?120:150):Math.min(440,innerWidth-32,innerHeight-120);minimapCanvas.width=minimapCanvas.height=S;minimapCanvas.style.borderRadius=mmMode===0?'50%':'16px';minimapCanvas.classList.toggle('mm-big',mmMode>0);}
+        function setStars(){document.querySelectorAll('#stars-container i').forEach((el,i)=>el.style.color=i<player.wanted?'#facc15':'#4b5563');}
+        function setWanted(){const o=player.wanted,w=player.heat<1?0:Math.min(5,Math.ceil(player.heat/3));player.wanted=w;if(w!==o){setStars();if(w>o){showToast('🚨 '+w+' 星通緝！'+['','警察開始追捕','警力增加','警車更快，並會設路障','警車預判你的走位、猛烈衝撞','最高警戒：大批警車全速追殺'][w]);sfx.playSiren();}}}
+        function addHeat(n){player.heat+=n;heatCool=0;setWanted();}
+        function nearPolice(r){return vehicles.some(v=>v.isPolice&&Math.hypot(v.mesh.position.x-player.x,v.mesh.position.z-player.z)<r);}
+        function removeCops(){vehicles=vehicles.filter(v=>{if(v.temp&&v!==player.currentVehicle){scene.remove(v.mesh);return false;}return true;});}
+        function copCar(x,z,ry,block){const t=vehicleTemplates.police,g=create3DCarMesh(t,'police');g.position.set(x,0,z);g.rotation.y=ry;scene.add(g);
+            const v={mesh:g,typeKey:'police',name:t.name,speed:0,cruise:.2,maxSpeed:t.speed,accel:t.accel,health:100,isPolice:true,temp:true,block:!!block,wheels:g.userData.wheels};vehicles.push(v);return v;}
+        function spawnCop(){const r=pick(ROADS),q=(r.v?r.w:r.d)/4,dir=Math.random()<.5?1:-1,off=(Math.random()<.5?-1:1)*rnd(120,180),cl=v=>Math.max(-560,Math.min(560,v));
+            if(r.v)copCar(r.x-dir*q,cl(player.z+off),dir>0?0:Math.PI);else copCar(cl(player.x+off),r.z+dir*q,dir>0?Math.PI/2:-Math.PI/2);}
+        function spawnRoadblock(){const h=player.inVehicle&&player.currentVehicle?player.currentVehicle.mesh.rotation.y:player.yaw+Math.PI,x=player.x+Math.sin(h)*170,z=player.z+Math.cos(h)*170;
+            if(!onRoad(x,z,0)||Math.abs(x)>560||Math.abs(z)>560)return;for(const k of[-1,1])copCar(x+Math.cos(h)*k*3,z-Math.sin(h)*k*3,h+Math.PI/2,true);showToast('🚧 警方在前方設下路障！');}
+        function spawnFootCop(){const g=new THREE.Group();const b=new THREE.Mesh(new THREE.CylinderGeometry(.27,.3,.9,8),M(0x1e3a8a));b.position.y=1.15;const hd=new THREE.Mesh(new THREE.SphereGeometry(.2,10,8),M(0xf1c9a5));hd.position.y=1.8;const cap=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,.1,10),M(0x111827));cap.position.y=2.02;
+            const l=[-1,1].map(q=>{const m=new THREE.Mesh(new THREE.BoxGeometry(.2,.8,.22).translate(0,-.4,0),M(0x111827));m.position.set(q*.13,.8,0);g.add(m);return m;});
+            const gun=new THREE.Mesh(new THREE.BoxGeometry(.08,.12,.34),M(0x111111));gun.position.set(.28,1.35,.3);g.add(gun);const a=rnd(0,6.28),d=rnd(45,75);g.add(b,hd,cap);g.position.set(player.x+Math.cos(a)*d,0,player.z+Math.sin(a)*d);scene.add(g);copFoot.push({g,legs:l});}
+        function copsClear(){copFoot.forEach(c=>scene.remove(c.g));copFoot=[];}
+        function chase(v){if(v.block)return true;const m=v.mesh,w=player.wanted,veh=player.inVehicle&&player.currentVehicle;
+            if(v.role===undefined)v.role=Math.random()<.25?'block':'ram';
+            let tx=player.x,tz=player.z,blk=false;
+            if(veh&&w>=3&&v.role==='block'){const h=veh.mesh.rotation.y;tx+=Math.sin(h)*26;tz+=Math.cos(h)*26;blk=true;}else if(w>=3&&veh){tx+=(veh.vx||0)*25;tz+=(veh.vz||0)*25;}
+            const dx=tx-m.position.x,dz=tz-m.position.z,d=Math.hypot(player.x-m.position.x,player.z-m.position.z);if(d>110+40*w)return false;
+            if(blk&&Math.hypot(dx,dz)<9){v.speed*=.85;let ef=veh.mesh.rotation.y+Math.PI/2-m.rotation.y;ef=Math.atan2(Math.sin(ef),Math.cos(ef));m.rotation.y+=Math.max(-.08,Math.min(.08,ef));return true;}
+            let df=Math.atan2(dx,dz)-m.rotation.y;df=Math.atan2(Math.sin(df),Math.cos(df));const tr=.03+.008*w;m.rotation.y+=Math.max(-tr,Math.min(tr,df));
+            v.speed+=((d<5?0:Math.min(v.maxSpeed*.95,.22+.08*w))-v.speed)*.06;
+            const nx=m.position.x+Math.sin(m.rotation.y)*v.speed,nz=m.position.z+Math.cos(m.rotation.y)*v.speed;
+            if(hitsBuilding(nx,nz,2.3)){v.speed*=.3;m.rotation.y+=.08;}else{m.position.x=nx;m.position.z=nz;}return true;}
+        const tracers=[];
+        function tracer(x1,y1,z1,x2,y2,z2){const len=Math.hypot(x2-x1,y2-y1,z2-z1)||1,m=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,1),new THREE.MeshBasicMaterial({color:0xfde047}));m.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);m.scale.z=len;m.lookAt(x2,y2,z2);scene.add(m);tracers.push({m,l:5});}
+        function copShoot(sx,sz,acc,dmg){const veh=player.inVehicle&&player.currentVehicle,d=Math.hypot(player.x-sx,player.z-sz);
+            if(hitsBuilding((sx+player.x)/2,(sz+player.z)/2,.6))return;
+            const spd=veh?Math.abs(veh.speed)*1.5:((keys['w']||keys['a']||keys['s']||keys['d'])?.25:0);
+            const p=Math.max(.05,Math.min(.3,acc-d/150-spd*.35)),hit=Math.random()<p,head=hit&&!veh&&Math.random()<.03;
+            tracer(sx,1.4,sz,hit?player.x:player.x+rnd(-5,5),hit?(head?1.8:1.2):rnd(.3,2),hit?player.z:player.z+rnd(-5,5));
+            if(!hit)return;
+            if(veh){veh.health=Math.max(0,veh.health-dmg*.6);document.getElementById('vehicle-health-bar').style.width=veh.health+'%';}
+            else{player.hp-=head?dmg*1.8:dmg;if(head)showToast('💥 被打中頭部！');hpFlash=12;}
+            if(player.hp<=0)busted('💀 '+HERO+'倒下了','你被警察擊倒，送往醫院急救，醫藥費 $');}
+        function hpUI(){let d=document.getElementById('hp-ui');if(!d){d=document.createElement('div');d.id='hp-ui';d.style.cssText='position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:20;width:220px;font-weight:900;font-size:11px;color:#bbf7d0;text-align:center;pointer-events:none';d.innerHTML='❤ '+HERO+' HP<div style="height:9px;margin-top:3px;background:#1f2937;border:1px solid #fff4;border-radius:6px;overflow:hidden"><div id="hp-fill" style="height:100%;width:100%;background:#22c55e"></div></div>';document.body.appendChild(d);}
+            if(!player.wanted&&player.hp<100)player.hp=Math.min(100,player.hp+.03);
+            d.style.display=(!IS_TOUCH&&(player.wanted>0||player.hp<100))?'block':'none';if(IS_TOUCH){const hb=document.getElementById('health-bar');if(hb)hb.style.width=Math.max(0,Math.min(player.hp,player.health))+'%';}const f=document.getElementById('hp-fill');f.style.width=Math.max(0,player.hp)+'%';f.style.background=hpFlash>0?'#ef4444':(player.hp<35?'#f97316':'#22c55e');if(hpFlash>0)hpFlash--;
+            for(let i=tracers.length-1;i>=0;i--){if(--tracers[i].l<=0){scene.remove(tracers[i].m);tracers.splice(i,1);}}}
+        function arrestUI(){hpUI();let d=document.getElementById('arrest-ui');if(!d){d=document.createElement('div');d.id='arrest-ui';d.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:20;width:260px;text-align:center;font-weight:900;font-size:13px;color:#fca5a5;display:none;pointer-events:none';d.innerHTML='🚔 逮捕中… 快逃！<div style="height:10px;margin-top:4px;background:#1f2937;border:1px solid #fff4;border-radius:6px;overflow:hidden"><div id="arrest-fill" style="height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#ef4444)"></div></div>';document.body.appendChild(d);}
+            d.style.display=arrest>1?'block':'none';document.getElementById('arrest-fill').style.width=Math.min(100,arrest)+'%';}
+        function busted(t,tx){arrest=0;player.hp=100;const fine=tx?Math.min(player.cash,300):Math.min(player.cash,500*Math.max(1,player.wanted));player.cash-=fine;document.getElementById('cash-display').innerText=`$ ${player.cash}`;
+            showModal(t||'🚔 你被逮捕了！',tx?tx+fine:`${HERO}被嘉義市警察局逮捕，罰款 $${fine}。`);player.heat=0;player.wanted=0;setStars();
+            if(player.inVehicle){player.currentVehicle.cruise=0;player.currentVehicle.speed=0;player.inVehicle=false;player.currentVehicle=null;document.getElementById('vehicle-hud').classList.add('hidden');}
+            removeCops();copsClear();player.x=8;player.z=14;player.y=1.8;}
+        const smoke=[];
+        function puff(x,z){const m=new THREE.Mesh(new THREE.SphereGeometry(.5,6,6),new THREE.MeshBasicMaterial({color:0xdddddd,transparent:true,opacity:.5}));m.position.set(x,.4,z);scene.add(m);smoke.push({m,l:30});}
+        function wantedTick(){
+            for(let i=smoke.length;i--;){const q=smoke[i];q.l--;q.m.scale.multiplyScalar(1.06);q.m.material.opacity=q.l/60;if(q.l<=0){scene.remove(q.m);q.m.material.dispose();q.m.geometry.dispose();smoke.splice(i,1);}}
+            if(!player.wanted)arrest=0;
+            const veh=player.inVehicle&&player.currentVehicle,vs=veh?Math.abs(veh.speed):0;
+            peds.forEach(p=>{if(p.hit>0||p.dead>0)return;const d=Math.hypot(p.g.position.x-player.x,p.g.position.z-player.z);
+                if(veh?(d<2.8&&vs>.12):(punch>0&&curW==='fist'&&d<3.4)){if(veh&&vs>.2){p.dead=900;addHeat(2);showToast('🚑 路人被車撞死了！');}else{p.hit=240;addHeat(veh?1:.8);}if(veh)veh.speed*=.85;}});
+            if(pedTick++%3===0)vehicles.forEach(v=>{if(v===player.currentVehicle||Math.abs(v.speed)<.2)return;const vx=v.mesh.position.x,vz=v.mesh.position.z;peds.forEach(p=>{if(p.dead>0)return;if(Math.hypot(p.g.position.x-vx,p.g.position.z-vz)<2.2)p.dead=900;});});
+            if(runCd>0)runCd--;
+            if(!veh&&runCd===0)for(const v of vehicles){const sp=Math.abs(v.speed);if(sp<.15||v===player.currentVehicle)continue;
+                const dx=player.x-v.mesh.position.x,dz=player.z-v.mesh.position.z,dd=Math.hypot(dx,dz);
+                if(dd<2.4){player.hp-=Math.min(100,sp*(v.isPolice?55:110));hpFlash=15;runCd=45;showToast('🚗 '+HERO+'被車撞了！');player.x+=dx/(dd||1)*2.5;player.z+=dz/(dd||1)*2.5;
+                    if(player.hp<=0)busted('💀 '+HERO+'被車撞死了','你被車輛撞倒，送往醫院急救，醫藥費 $');break;}}
+            if(punch>0&&curW==='fist')copFoot.forEach(c=>{if(!(c.stun>0)&&Math.hypot(c.g.position.x-player.x,c.g.position.z-player.z)<3.4){c.stun=180;c.g.rotation.x=-1.5;addHeat(.4);showToast('👊 打倒一名警察！快逃！');}});
+            if(punch>0)punch--;
+            if(player.wanted>0){
+                if(sfxT++%90===0)sfx.playSiren();
+                const W=player.wanted;
+                if(++reinf%Math.max(120,360-40*W)===0&&vehicles.filter(v=>v.isPolice).length<6+W*2)spawnCop();
+                if(W>=4&&++roadT%1500===0)spawnRoadblock();
+                if(W<=3&&reinf%400===0&&copFoot.length<1+W)spawnFootCop();
+                let near=0;const fs=.08+.025*W;copFoot.forEach((c,i)=>{if(c.stun>0){if(--c.stun===0)c.g.rotation.x=0;else return;}const dx=player.x-c.g.position.x,dz=player.z-c.g.position.z,d=Math.hypot(dx,dz)||1,sx=dx/d*fs,sz=dz/d*fs;
+                    if(!hitsBuilding(c.g.position.x+sx,c.g.position.z,.6))c.g.position.x+=sx;if(!hitsBuilding(c.g.position.x,c.g.position.z+sz,.6))c.g.position.z+=sz;
+                    c.g.rotation.y=Math.atan2(dx,dz);const sw=Math.sin(performance.now()*.012+i)*.6;c.legs[0].rotation.x=sw;c.legs[1].rotation.x=-sw;
+                    if(d<2.2)near++;
+                    c.cd=(c.cd===undefined?rnd(90,160):c.cd)-1;if(c.cd<=0&&d<32){copShoot(c.g.position.x,c.g.position.z,.3,3+W*.6);c.cd=rnd(120,200)/(1+W*.1);}});
+                if(W>=3)vehicles.forEach(v=>{if(!v.isPolice||v===player.currentVehicle)return;const dd=Math.hypot(v.mesh.position.x-player.x,v.mesh.position.z-player.z);v.cd=(v.cd===undefined?rnd(60,140):v.cd)-1;if(v.cd<=0&&dd<40){copShoot(v.mesh.position.x,v.mesh.position.z,.2,3+W*.5);v.cd=rnd(160,260)/(1+W*.08);}});
+                if(!nearPolice(70)){if(++heatCool>120){player.heat=Math.max(0,player.heat-.012);setWanted();if(!player.wanted){showToast('✅ '+HERO+'甩掉了警察！');removeCops();copsClear();}}}else heatCool=0;
+                const cn=vehicles.filter(v=>v.isPolice&&v!==player.currentVehicle&&Math.hypot(v.mesh.position.x-player.x,v.mesh.position.z-player.z)<5.5).length+near;
+                if(cn>0&&(!veh||vs<.15))arrest+=.06*Math.min(cn,4);else arrest=Math.max(0,arrest-1.5);
+                if(veh&&cn>0){veh.health=Math.max(0,veh.health-.04*W*Math.min(cn,3));document.getElementById('vehicle-health-bar').style.width=veh.health+'%';}
+                if(arrest>=100||(veh&&veh.health<=0))busted();
+            }
+        }
+
+        // ================= 武器系統 / 嘉義槍店 =================
+        const WEAPONS = [
+            { id: 'fist',    name: '拳頭', icon: '👊', type: 'fist',  price: 0,    dmg: 1, desc: '空手揍人' },
+            { id: 'bat',     name: '球棒', icon: '🏏', type: 'melee', price: 300,  dmg: 3, range: 4.6, cd: 28, desc: '近戰・範圍大' },
+            { id: 'cleaver', name: '菜刀', icon: '🔪', type: 'melee', price: 200,  dmg: 2, range: 3.3, cd: 15, desc: '近戰・出手快' },
+            { id: 'pistol',  name: '手槍', icon: '🔫', type: 'gun',   price: 800,  dmg: 2, range: 100, cd: 18, spread: .008, ammo0: 24, pack: 24, packPrice: 120, desc: '單發・精準' },
+            { id: 'ak47',    name: 'AK47', icon: '🔫', type: 'gun',   price: 2500, dmg: 3, range: 150, cd: 6,  spread: .025, ammo0: 90, pack: 60, packPrice: 300, auto: true, desc: '全自動・按住連射' }
+        ];
+        let owned = { fist: true }, ammo = {}, curW = 'fist', atkCd = 0, shopOpen = false, shopLock = 0, heldFor = null, heldFps = null, heldTp = null, shopHinted = false;
+        const W = () => WEAPONS.find(w => w.id === curW) || WEAPONS[0];
+        function nearShop() { const s = landmarks.find(l => l.id === 'gunshop'); return !!s && !player.inVehicle && Math.hypot(player.x - s.x, player.z - s.z) < 26; }
+        function restoreWeapons(d) {
+            if (d.wp && typeof d.wp === 'object') owned = Object.assign({ fist: true }, d.wp);
+            if (d.ammo && typeof d.ammo === 'object') ammo = d.ammo;
+            if (d.cur && owned[d.cur]) curW = d.cur;
+            refreshWeaponHUD();
+        }
+
+        function buildGunShop() {
+            const l = landmarks.find(l => l.id === 'gunshop'); if (!l) return;
+            const x = l.x, z = l.z;
+            building(x, z, 18, 14, 7, 0x8b95a1);
+            sign('嘉義槍店', 12, 2.2, x, 5.3, z + 7.1, 0, '#7f1d1d');
+            sign('嘉義槍店', 10, 1.9, x + 9.1, 5.3, z, Math.PI / 2, '#7f1d1d');
+            const aw = new THREE.Mesh(new THREE.BoxGeometry(14, .2, 2.8), M(0xb91c1c)); aw.position.set(x, 3.4, z + 8.3); aw.castShadow = true; scene.add(aw);
+            const door = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.7, .12), M(0x1f2937, { emissive: 0xf59e0b, emissiveIntensity: .35 })); door.position.set(x, 1.35, z + 7.08); scene.add(door);
+            const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 70, 16), new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: .16, depthWrite: false })); beam.position.set(x, 35, z + 12); scene.add(beam);
+        }
+
+        // ---- 手持武器模型（第一人稱掛在相機、第三人稱掛在角色身上）----
+        function buildHeld(id, s) {
+            const g = new THREE.Group();
+            const add = (geo, col, x, y, z, o = {}) => { const m = new THREE.Mesh(geo, M(col, o)); m.position.set(x, y, z); g.add(m); return m; };
+            const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+            if (id === 'pistol') {
+                add(B(.07, .1, .3), 0x1f2937, 0, 0, s * .15, { metalness: .5, roughness: .4 });
+                add(B(.06, .17, .08), 0x111111, 0, -.12, s * .05).rotation.x = s * -.25;
+            } else if (id === 'ak47') {
+                add(B(.08, .1, .62), 0x2b2b2b, 0, 0, s * .3, { metalness: .5 });
+                add(B(.09, .09, .3), 0x7a4a1e, 0, 0, s * .62);
+                add(B(.04, .04, .28), 0x9ca3af, 0, .02, s * .9, { metalness: .8 });
+                add(B(.08, .13, .3), 0x7a4a1e, 0, -.02, -s * .12);
+                add(B(.06, .24, .1), 0x1f1f1f, 0, -.16, s * .32).rotation.x = s * .25;
+                add(B(.06, .14, .07), 0x2b2b2b, 0, -.12, s * .08);
+            } else if (id === 'bat') {
+                const geo = new THREE.CylinderGeometry(.085, .032, 1.05, 10); geo.translate(0, .52, 0);
+                const m = new THREE.Mesh(geo, M(0xc08a4a)); m.rotation.x = s * .95; g.add(m);
+            } else if (id === 'cleaver') {
+                add(B(.04, .045, .2), 0x5b3a1e, 0, 0, s * .02);
+                add(B(.025, .2, .36), 0xcbd5e1, 0, .02, s * .28, { metalness: .7, roughness: .3 });
+            }
+            return g;
+        }
+        const HELD_POS = { pistol: [.3, -.27, -.5], ak47: [.28, -.28, -.45], bat: [.38, -.45, -.5], cleaver: [.3, -.3, -.5] };
+        function setHeld() {
+            if (!camera || !playerMesh) return;
+            if (heldFps) { camera.remove(heldFps); heldFps = null; }
+            if (heldTp) { playerMesh.remove(heldTp); heldTp = null; }
+            heldFor = curW; if (curW === 'fist') return;
+            heldFps = buildHeld(curW, -1); camera.add(heldFps);
+            heldTp = buildHeld(curW, 1); heldTp.position.set(.4, 1.25, .25); playerMesh.add(heldTp);
+        }
+
+        // ---- HUD ----
+        function refreshWeaponHUD() {
+            let d = document.getElementById('weapon-hud');
+            if (!d) { d = document.createElement('div'); d.id = 'weapon-hud'; d.style.cssText = 'position:fixed;left:50%;bottom:8px;transform:translateX(-50%);z-index:19;display:none;pointer-events:none;text-align:center;font-weight:900;color:#fff;text-shadow:0 1px 3px #000'; document.body.appendChild(d); }
+            const w = W(), a = w.type === 'gun' ? ` ｜ 彈藥 ${ammo[w.id] || 0}` : '';
+            d.innerHTML = `<div style="font-size:13px;color:#fde68a">${w.icon} ${w.name}${a}</div><div style="display:flex;gap:4px;justify-content:center;margin-top:3px">` +
+                WEAPONS.map((x, i) => `<span style="min-width:26px;padding:2px 5px;border-radius:7px;font-size:11px;border:1px solid ${x.id === curW ? '#facc15' : '#4b5563'};background:${x.id === curW ? 'rgba(250,204,21,.3)' : 'rgba(15,23,42,.7)'};opacity:${owned[x.id] ? 1 : .35}">${i + 1}${x.icon}</span>`).join('') + '</div>';
+        }
+        function equip(id) { curW = id; atkCd = 10; refreshWeaponHUD(); const w = W(); showToast(w.icon + ' 切換：' + w.name); saveProgress(); }
+        function equipSlot(i) { if (!gameStarted || paused) return; const w = WEAPONS[i]; if (!w) return; if (!owned[w.id]) { showToast('🔒 尚未擁有【' + w.name + '】，去嘉義槍店購買'); return; } equip(w.id); }
+        function cycleWeapon() { if (!gameStarted || paused) return; const list = WEAPONS.filter(w => owned[w.id]); const i = list.findIndex(w => w.id === curW); equip(list[(i + 1) % list.length].id); }
+
+        // ---- 戰鬥 ----
+        function hurt(t, w) {
+            if (t.k === 'ped') { t.o.dead = 900; t.o.hit = 0; addHeat(1.5); sfx.playThud(); }
+            else {
+                const c = t.o; c.hp = (c.hp === undefined ? 6 : c.hp) - w.dmg; addHeat(.3); sfx.playThud();
+                if (c.hp <= 0) { c.hp = 6; c.stun = 1500; c.g.rotation.x = -1.5; addHeat(1); showToast('🚓 警察倒地！快逃！'); }
+            }
+        }
+        function meleeSwing(w) {
+            const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+            const near = g => { const dx = g.position.x - player.x, dz = g.position.z - player.z, d = Math.hypot(dx, dz); return d > 0 && d <= w.range && (dx * fx + dz * fz) / d > .25; };
+            peds.forEach(p => { if (p.dead > 0) return; if (near(p.g)) hurt({ k: 'ped', o: p }, w); });
+            copFoot.forEach(c => { if (c.stun > 0) return; if (near(c.g)) hurt({ k: 'cop', o: c }, w); });
+        }
+        function shootRay(w) {
+            const cp = Math.cos(player.pitch);
+            let rx = -Math.sin(player.yaw) * cp + rnd(-w.spread, w.spread), ry = Math.sin(player.pitch) + rnd(-w.spread, w.spread), rz = -Math.cos(player.yaw) * cp + rnd(-w.spread, w.spread);
+            const n = Math.hypot(rx, ry, rz); rx /= n; ry /= n; rz /= n;
+            const ox = player.x, oy = 1.6, oz = player.z;
+            let end = w.range;
+            if (ry < -.001) end = Math.min(end, oy / -ry);
+            for (let t = 1.5; t < end; t += 1.5) { if (hitsBuilding(ox + rx * t, oz + rz * t, .1)) { end = t; break; } }
+            const test = (px, py, pz, r) => { const s = (px - ox) * rx + (py - oy) * ry + (pz - oz) * rz; if (s < .5 || s > end) return -1; return Math.hypot(ox + rx * s - px, oy + ry * s - py, oz + rz * s - pz) < r ? s : -1; };
+            let best = null, bs = end + 1;
+            peds.forEach(p => { if (p.dead > 0) return; const s = test(p.g.position.x, 1.1, p.g.position.z, .6); if (s >= 0 && s < bs) { bs = s; best = { k: 'ped', o: p }; } });
+            copFoot.forEach(c => { if (c.stun > 0) return; const s = test(c.g.position.x, 1.1, c.g.position.z, .6); if (s >= 0 && s < bs) { bs = s; best = { k: 'cop', o: c }; } });
+            if (best) { end = bs; hurt(best, w); }
+            tracer(ox + rx * .8, oy - .3, oz + rz * .8, ox + rx * end, oy + ry * end, oz + rz * end);
+        }
+        function doAttack() {
+            if (!gameStarted || paused || shopOpen) return;
+            const w = W();
+            if (w.type === 'fist') { punch = 12; return; }
+            if (player.inVehicle || atkCd > 0) return;
+            atkCd = w.cd;
+            if (w.type === 'melee') { punch = 12; meleeSwing(w); return; }
+            if (!(ammo[w.id] > 0)) { showToast('❌ 【' + w.name + '】沒子彈了！去嘉義槍店補充'); atkCd = 20; return; }
+            ammo[w.id]--; punch = 6; sfx.playShot(!!w.auto);
+            if (nearPolice(60)) addHeat(.1);
+            shootRay(w); refreshWeaponHUD();
+        }
+        function weaponTick() {
+            if (atkCd > 0) atkCd--;
+            const w = W();
+            if (w.auto && !player.inVehicle && ((isMouseDown && document.pointerLockElement) || keys['q'])) doAttack();
+            if (curW !== heldFor) setHeld();
+            if (!document.getElementById('weapon-hud')) refreshWeaponHUD();
+            document.getElementById('weapon-hud').style.display = gameStarted ? 'block' : 'none';
+            if (heldFps) {
+                const b = HELD_POS[curW], k = punch / (w.type === 'melee' ? 12 : 6);
+                heldFps.visible = cameraMode === 'fps' && !player.inVehicle;
+                heldFps.position.set(b[0], b[1], b[2] + (w.type === 'gun' ? k * .06 : 0));
+                heldFps.rotation.x = w.type === 'melee' ? -k * 1.2 : k * .15;
+            }
+            const s = landmarks.find(l => l.id === 'gunshop');
+            if (s) { const d = Math.hypot(player.x - s.x, player.z - s.z); if (!player.inVehicle && d < 26) { if (!shopHinted) { shopHinted = true; showToast('🔫 按 E 進入【嘉義槍店】'); } } else if (d > 45) shopHinted = false; }
+        }
+
+        // ---- 商店 ----
+        function openShop() {
+            if (shopOpen || performance.now() < shopLock) return;
+            shopOpen = true; paused = true; lockWasHeld = false;
+            if (document.pointerLockElement) document.exitPointerLock();
+            document.body.classList.add('ui-open'); setTimeout(() => { if (shopOpen && document.pointerLockElement) document.exitPointerLock(); }, 60);
+            renderShop(); document.getElementById('shop-overlay').classList.remove('hidden');
+        }
+        function closeShop() {
+            if (!shopOpen) return;
+            shopOpen = false; paused = false; shopLock = performance.now() + 500;
+            document.body.classList.remove('ui-open'); document.getElementById('shop-overlay').classList.add('hidden'); lockMouse();
+        }
+        function renderShop() {
+            document.getElementById('shop-cash').innerText = '$ ' + player.cash;
+            document.getElementById('shop-list').innerHTML = WEAPONS.filter(w => w.price > 0).map((w, hi) => { w.hot = hi + 1;
+                const has = owned[w.id];
+                const btn = 'px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer ';
+                let btns = has ? '<span class="text-green-400 text-xs font-bold">✔ 已擁有</span>' : `<button data-act="buy" data-id="${w.id}" class="${btn}bg-red-600 text-white">購買 $${w.price}</button>`;
+                if (has && w.type === 'gun') btns += `<button data-act="ammo" data-id="${w.id}" class="${btn}bg-amber-500 text-black">補彈 +${w.pack} $${w.packPrice}</button>`;
+                const info = w.type === 'gun' ? `傷害 ${w.dmg} ｜ 彈藥 ${ammo[w.id] || 0}（購買附 ${w.ammo0} 發）` : `傷害 ${w.dmg}`;
+                return `<div class="flex items-center gap-3 bg-gray-900/80 border border-gray-700 rounded-2xl p-3"><div class="text-3xl">${w.icon}</div><div class="flex-1 text-left"><div class="font-black text-white">${w.hot}. ${w.name} <span class="text-xs text-gray-400 font-bold">${w.desc}</span></div><div class="text-xs text-amber-300">${info}</div></div><div class="flex flex-col gap-1 items-end">${btns}</div></div>`;
+            }).join('');
+        }
+        function shopAct(act, id) {
+            const w = WEAPONS.find(x => x.id === id); if (!w) return;
+            if (act === 'buy') {
+                if (owned[id]) return;
+                if (player.cash < w.price) { showToast('💸 現金不足！'); return; }
+                player.cash -= w.price; owned[id] = true; if (w.type === 'gun') ammo[id] = (ammo[id] || 0) + w.ammo0;
+                curW = id; showToast('✅ 購買【' + w.name + '】，已裝備');
+            } else if (act === 'ammo') {
+                if (!owned[id]) return;
+                if ((ammo[id] || 0) >= 300) { showToast('彈藥已達上限'); return; }
+                if (player.cash < w.packPrice) { showToast('💸 現金不足！'); return; }
+                player.cash -= w.packPrice; ammo[id] = Math.min(300, (ammo[id] || 0) + w.pack);
+            }
+            sfx.playCash(); document.getElementById('cash-display').innerText = `$ ${player.cash}`;
+            saveProgress(); refreshWeaponHUD(); renderShop();
+        }
+        function setupShop() {
+            document.getElementById('shop-list').addEventListener('click', e => { const b = e.target.closest('button[data-act]'); if (b) shopAct(b.dataset.act, b.dataset.id); });
+            document.getElementById('shop-close').addEventListener('click', closeShop);
+        }
+
+        function update() {
+            if (!gameStarted||paused) return;
+
+            const moveSpeed = keys['shift'] ? player.speed * 1.9 : player.speed;
+
+            if (player.inVehicle && player.currentVehicle) {
+                const v = player.currentVehicle;
+                const steer = (keys[' '] ? 0.065 : 0.04) * Math.min(1, Math.abs(v.speed) / 0.25) * Math.sign(v.speed || 1);
+                if (keys['a'] || keys['arrowleft']) v.mesh.rotation.y += steer;
+                if (keys['d'] || keys['arrowright']) v.mesh.rotation.y -= steer;
+                if (keys[' ']) v.speed *= 0.992;
+
+                if (keys['w'] || keys['arrowup']) {
+                    v.speed = Math.min(v.maxSpeed, v.speed + v.accel);
+                    sfx.playEngine();
+                } else if (keys['s'] || keys['arrowdown']) {
+                    v.speed = Math.max(-v.maxSpeed * 0.4, v.speed - v.accel);
+                } else {
+                    v.speed *= 0.95;
+                }
+
+                const hx = Math.sin(v.mesh.rotation.y), hz = Math.cos(v.mesh.rotation.y), grip = keys[' '] ? 0.04 : 0.2;
+                if (v.vx === undefined) { v.vx = hx * v.speed; v.vz = hz * v.speed; }
+                v.vx += (hx * v.speed - v.vx) * grip; v.vz += (hz * v.speed - v.vz) * grip;
+                if (Math.abs(v.vx * hz - v.vz * hx) > 0.1 && Math.abs(v.speed) > 0.15 && Math.random() < 0.7) puff(v.mesh.position.x - hx * 2 + rnd(-1, 1), v.mesh.position.z - hz * 2 + rnd(-1, 1));
+                const nx = v.mesh.position.x + v.vx;
+                const nz = v.mesh.position.z + v.vz;
+                if (hitsBuilding(nx, nz, 2.3)) {
+                    if (Math.abs(v.speed) > 0.2) { v.health = Math.max(0, v.health - Math.abs(v.speed) * 25); document.getElementById('vehicle-health-bar').style.width = v.health + '%'; sfx.playHonk(); }
+                    v.speed *= -0.25; v.vx *= -0.25; v.vz *= -0.25;
+                } else { v.mesh.position.x = nx; v.mesh.position.z = nz; }
+                player.x = v.mesh.position.x;
+                player.z = v.mesh.position.z;
+                if (!isMouseDown) { player.yaw = v.mesh.rotation.y + Math.PI; player.pitch *= 0.9; }
+
+                document.getElementById('vehicle-speed').innerText = `${Math.abs(Math.round(v.speed * 190))} KM/H`;
+            } else {
+                let mx = 0, mz = 0;
+                if (keys['w'] || keys['arrowup']) mz -= 1;
+                if (keys['s'] || keys['arrowdown']) mz += 1;
+                if (keys['a'] || keys['arrowleft']) mx -= 1;
+                if (keys['d'] || keys['arrowright']) mx += 1;
+
+                if (mx !== 0 || mz !== 0) {
+                    const len = Math.hypot(mx, mz);
+                    const nx = mx / len, nz = mz / len;
+                    const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
+                    const dx = (nx * cos + nz * sin) * moveSpeed, dz = (-nx * sin + nz * cos) * moveSpeed;
+                    if (!hitsBuilding(player.x + dx, player.z, 0.6)) player.x += dx;
+                    if (!hitsBuilding(player.x, player.z + dz, 0.6)) player.z += dz;
+                    player.bob = (player.bob || 0) + moveSpeed * 2.2;
+                }
+            }
+
+            // Boundaries
+            player.x = Math.max(-MAP_SIZE/2 + 30, Math.min(MAP_SIZE/2 - 30, player.x));
+            player.z = Math.max(-MAP_SIZE/2 + 30, Math.min(MAP_SIZE/2 - 30, player.z));
+
+            playerMesh.position.set(player.x, 0, player.z); { const mv = keys['w'] || keys['a'] || keys['s'] || keys['d'] || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright'];
+                let df = player.yaw - (player.bodyYaw || 0); df = Math.atan2(Math.sin(df), Math.cos(df));
+                if (mv || Math.abs(df) > 1.2 || punch > 0) player.bodyYaw = (player.bodyYaw || 0) + df * 0.2;
+                df = player.yaw - player.bodyYaw; df = Math.atan2(Math.sin(df), Math.cos(df));
+                playerMesh.rotation.y = player.bodyYaw + Math.PI;
+                const hd = playerMesh.userData.head; hd.rotation.y = Math.max(-1.3, Math.min(1.3, df)); hd.rotation.x = -Math.max(-.9, Math.min(.9, player.pitch)); } playerMesh.userData.arms.forEach(a => a.rotation.x = punch > 0 ? -1.6 : 0);
+            playerMesh.visible = cameraMode === 'third' && !player.inVehicle;
+
+            // Camera update
+            if (cameraMode === 'fps') {
+                camera.position.set(player.x, player.inVehicle ? 1.45 : player.y + Math.sin(player.bob || 0) * 0.05, player.z);
+                const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+                euler.x = player.pitch; euler.y = player.yaw;
+                camera.quaternion.setFromEuler(euler);
+            } else {
+                const camDist = 14;
+                camera.position.x = player.x + Math.sin(player.yaw) * camDist;
+                camera.position.z = player.z + Math.cos(player.yaw) * camDist;
+                camera.position.y = player.y + 6.5;
+                camera.lookAt(player.x, player.y + 1, player.z);
+            }
+
+            // AI Traffic & Police pursuit
+            vehicles.forEach(v => {
+                if (v === player.currentVehicle) return;
+                driveAI(v);
+
+                // Collision detection with player
+                const dist = Math.hypot(player.x - v.mesh.position.x, player.z - v.mesh.position.z);
+                if (player.inVehicle && player.currentVehicle && dist < 4.6) {
+                    const c = player.currentVehicle; c.speed *= 0.6; c.health = Math.max(0, c.health - 1.2); addHeat(.01);
+                    { const px = v.mesh.position.x - player.x, pz = v.mesh.position.z - player.z, pd = Math.hypot(px, pz) || 1; v.mesh.position.x += px / pd * .6; v.mesh.position.z += pz / pd * .6; if (v.isPolice && Math.abs(c.speed) > .25) { v.speed *= .5; v.mesh.rotation.y += .12; } }
+                    document.getElementById('vehicle-health-bar').style.width = c.health + '%';
+                }
+                if (dist < 3.2 && !player.inVehicle && Math.abs(v.speed) > 0.05) {
+                    player.health -= Math.abs(v.speed) * 2.5;
+                    document.getElementById('health-bar').style.width = `${Math.max(0, player.health)}%`;
+                    if (player.health <= 0) {
+                        showModal('💀 暈倒住院', '你在街上遭遇碰撞，被送到嘉義基督教醫院！');
+                        player.health = 100;
+                        player.x = 8; player.z = 14;
+                    }
+                }
+            });
+
+            wantedTick(); arrestUI(); weaponTick();
+            // Mission Goal Check
+            if (activeMission) {
+                const dist = Math.hypot(player.x - activeMission.targetX, player.z - activeMission.targetZ);
+                if (dist < 20) {
+                    clearInterval(window.missionTimer);
+                    player.cash += activeMission.reward;
+                    document.getElementById('cash-display').innerText = `$ ${player.cash}`;
+                    sfx.playCash();
+                    showModal('🎉 任務成功！', `順利完成【${activeMission.title}】，獲得獎金 $${activeMission.reward}！`);
+                    activeMission = null;
+                    document.getElementById('mission-card').classList.add('hidden');
+                }
+            }
+
+            updateMinimapAndHUD();
+        }
+
+        function updateMinimapAndHUD() {
+            let locName = '嘉義市區街道';
+            landmarks.forEach(l => {
+                if (Math.hypot(player.x - l.x, player.z - l.z) < 50) locName = l.name;
+            });
+            document.getElementById('current-location').innerText = `📍 ${locName}`;
+
+            const S=minimapCanvas.width;minimapCtx.clearRect(0,0,S,S);minimapCtx.save();minimapCtx.translate(S/2,S/2);
+            const scale=mmMode===0?0.32:mmMode===1?0.65:S/(MAP_SIZE*1.02), cx=mmMode===2?0:player.x, cz=mmMode===2?0:player.z;
+            minimapCtx.fillStyle = '#475569';
+            ROADS.forEach(r => minimapCtx.fillRect((r.x - r.w/2 - cx) * scale, (r.z - r.d/2 - cz) * scale, r.w * scale, r.d * scale));
+
+            landmarks.forEach(l => {
+                const mx = (l.x - cx) * scale;
+                const mz = (l.z - cz) * scale;
+                minimapCtx.fillStyle = l.color;
+                minimapCtx.beginPath();
+                minimapCtx.arc(mx, mz, 5, 0, Math.PI * 2);
+                minimapCtx.fill();
+                if(mmMode>0){minimapCtx.fillStyle='#fff';minimapCtx.font='12px sans-serif';minimapCtx.fillText(l.name,mx+8,mz+4);}
+            });
+
+            vehicles.forEach(v => {
+                const vx = (v.mesh.position.x - cx) * scale;
+                const vz = (v.mesh.position.z - cz) * scale;
+                minimapCtx.fillStyle = v.isPolice ? '#ef4444' : '#facc15';
+                minimapCtx.fillRect(vx - 2, vz - 2, 4, 4);
+            });
+
+            if (activeMission) {
+                const tx = (activeMission.targetX - cx) * scale;
+                const tz = (activeMission.targetZ - cz) * scale;
+                minimapCtx.fillStyle = '#eab308';
+                minimapCtx.beginPath();
+                minimapCtx.arc(tx, tz, 7, 0, Math.PI * 2);
+                minimapCtx.fill();
+            }
+
+            if(mmMode>0){minimapCtx.fillStyle='#fde68a';minimapCtx.font='11px sans-serif';ROADS.forEach(r=>{if(r.v)minimapCtx.fillText(r.n,(r.x-cx)*scale+4,-S/2+14);else minimapCtx.fillText(r.n,-S/2+6,(r.z-cz)*scale-4);});}
+            const px=(player.x-cx)*scale,pz=(player.z-cz)*scale;
+            minimapCtx.fillStyle = '#38bdf8';
+            minimapCtx.beginPath();
+            minimapCtx.arc(px, pz, 5, 0, Math.PI * 2);
+            minimapCtx.fill();
+
+            minimapCtx.strokeStyle = '#ffffff';
+            minimapCtx.lineWidth = 2;
+            minimapCtx.beginPath();
+            minimapCtx.moveTo(px, pz);
+            minimapCtx.lineTo(px-Math.sin(player.yaw) * 12, pz-Math.cos(player.yaw) * 12);
+            minimapCtx.stroke();
+
+            minimapCtx.restore();
+        }
+
+        function showToast(txt) {
+            const t = document.getElementById('toast-msg');
+            document.getElementById('toast-text').innerText = txt;
+            t.classList.remove('opacity-0', '-translate-y-4');
+            t.classList.add('opacity-100', 'translate-y-0');
+            setTimeout(() => {
+                t.classList.remove('opacity-100', 'translate-y-0');
+                t.classList.add('opacity-0', '-translate-y-4');
+            }, 3500);
+        }
+
+        function showModal(title, desc) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-desc').innerText = desc;
+            document.getElementById('modal-overlay').classList.remove('hidden');
+            if (document.pointerLockElement) document.exitPointerLock();
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+            if (gameStarted && !paused) lockMouse();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(!paused){try{update();}catch(e){reportErr(e,'update');} try{updateWorld();}catch(e){reportErr(e,'world');}} try{renderer.render(scene, camera);}catch(e){reportErr(e,'render');}
+        }
+
+        window.onload = function() {
+            try{init3DWorld();applySet();}catch(e){reportErr(e,'init');}
+            animate();
+        };
+    </script>
+</body>
+</html>
